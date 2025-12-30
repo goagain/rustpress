@@ -8,7 +8,7 @@
       "program": "${workspaceFolder}/target/debug/rustpress.exe",
       "args": [],
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "cargo build",
+      "preLaunchTask": "stop and build",
       "stopOnEntry": false,
       "env": {
         "DATABASE_URL": "postgres://postgres:password@localhost:5432/rustpress"

@@ -1,0 +1,7 @@
+{
+  "name": "rustpress-root",
+  "private": true,
+  "scripts": {
+    "preinstall": "echo '---------------------------------------------------------' && echo '❌ Error npm command!' && echo 'Please run npm commands from the frontend directory.' && echo '---------------------------------------------------------' && exit 1"
+  }
+}

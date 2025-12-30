@@ -1,0 +1,19 @@
+# Seed data configuration for initial database population
+# This file contains sample data that is used to populate the database
+# when the application starts for the first time.
+
+[sample_post]
+title = "Welcome to RustPress"
+category = "Announcement"
+content = """# Welcome to RustPress
+
+This is your first sample post. You can:
+
+- Edit this post
+- Delete this post
+- Create new posts
+
+RustPress is a modern blog system built with Rust.
+
+Enjoy!"""
+

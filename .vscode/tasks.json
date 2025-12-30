@@ -2,11 +2,42 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "stop rustpress",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "Get-Process -Name rustpress -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }; exit 0"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared",
+        "echo": false
+      }
+    },
+    {
       "label": "cargo build",
       "type": "shell",
       "command": "cargo",
       "args": ["build"],
       "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "stop and build",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "stop rustpress",
+        "cargo build"
+      ],
+      "problemMatcher": [],
       "presentation": {
         "reveal": "always",
         "panel": "shared"

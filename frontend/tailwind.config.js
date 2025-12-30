@@ -1,11 +1,17 @@
-// tailwind.config.js
-module.exports = {
+/** @type {import('tailwindcss').Config} */
+export default {
   content: [
     "./index.html",
-    "./src/**/*.{ts,tsx,js,jsx}",
+    "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        brand: '#f97316',
+      }
+    },
   },
-  plugins: [],
-};
+  plugins: [
+    require('@tailwindcss/typography'),
+  ],
+}
