@@ -54,6 +54,13 @@ export interface User {
   updated_at: string;
 }
 
+export interface CreatePostRequest {
+  title: string;
+  category: string;
+  content: string;
+  author_id: number;
+}
+
 declare global {
   interface Window {
     __INITIAL_DATA__?: PageData;

@@ -106,11 +106,27 @@ export const api = {
   },
 
   async getCurrentUser(): Promise<User> {
-    const response = await authenticatedFetch(`${API_BASE_URL}/users/me`);
-    if (!response.ok) {
-      throw new Error('Failed to get user information');
+    // Parse user info from JWT token
+    const token = getAccessToken();
+    if (!token) {
+      throw new Error('Not authenticated');
     }
-    return response.json();
+
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      // Note: This is a simplified version. In production, you might want to verify the token
+      // and fetch full user data from the backend
+      return {
+        id: parseInt(payload.sub, 10),
+        username: payload.username,
+        email: '', // Not available in token
+        role: payload.role as 'Root' | 'Admin' | 'User',
+        created_at: '',
+        updated_at: '',
+      };
+    } catch (error) {
+      throw new Error('Failed to parse user information from token');
+    }
   },
 
   // Post related
@@ -134,6 +150,25 @@ export const api = {
     if (!response.ok) {
       throw new Error('Failed to get post');
     }
+    const data = await response.json();
+    // Convert id from number to string
+    return {
+      ...data,
+      id: String(data.id),
+    };
+  },
+
+  async createPost(post: { title: string; category: string; content: string; author_id: number }): Promise<PostResponse> {
+    const response = await authenticatedFetch(`${API_BASE_URL}/posts`, {
+      method: 'POST',
+      body: JSON.stringify(post),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to create post');
+    }
+
     const data = await response.json();
     // Convert id from number to string
     return {

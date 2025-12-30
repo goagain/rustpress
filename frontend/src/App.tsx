@@ -4,6 +4,7 @@ import { SideBar } from './components/Layout/SideBar';
 import { LoginModal } from './components/Auth/LoginModal';
 import { PostList } from './components/Blog/PostList';
 import { PostDetail } from './components/Blog/PostDetail';
+import { CreatePost } from './components/Blog/CreatePost';
 import { isAuthenticated, clearTokens } from './services/api';
 import type { PostResponse } from './types';
 
@@ -11,7 +12,7 @@ export default function App() {
   const [authenticated, setAuthenticated] = useState(isAuthenticated());
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [selectedPost, setSelectedPost] = useState<PostResponse | null>(null);
-  const [currentView, setCurrentView] = useState<'list' | 'detail'>('list');
+  const [currentView, setCurrentView] = useState<'list' | 'detail' | 'create'>('list');
 
   // Monitor authentication state changes
   useEffect(() => {
@@ -57,6 +58,20 @@ export default function App() {
     window.history.pushState({}, '', '/');
   };
 
+  const handleCreatePost = () => {
+    setCurrentView('create');
+  };
+
+  const handlePostCreated = () => {
+    setCurrentView('list');
+    // Optionally refresh the post list
+    window.location.reload();
+  };
+
+  const handleCancelCreate = () => {
+    setCurrentView('list');
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans selection:bg-orange-100">
       <NavBar 
@@ -69,7 +84,9 @@ export default function App() {
         <div className="flex flex-col lg:flex-row gap-12">
           {/* Post content area - viewable without login */}
           <div className="flex-1 min-w-0">
-            {currentView === 'detail' && selectedPost ? (
+            {currentView === 'create' ? (
+              <CreatePost onSuccess={handlePostCreated} onCancel={handleCancelCreate} />
+            ) : currentView === 'detail' && selectedPost ? (
               <PostDetail postId={selectedPost.id} onBack={handleBackToList} />
             ) : (
               <div>
@@ -84,7 +101,11 @@ export default function App() {
             )}
           </div>
 
-          <SideBar authenticated={authenticated} onLogin={() => setShowLoginModal(true)} />
+          <SideBar 
+            authenticated={authenticated} 
+            onLogin={() => setShowLoginModal(true)}
+            onCreatePost={handleCreatePost}
+          />
         </div>
       </main>
 

@@ -1,9 +1,10 @@
 interface SideBarProps {
     authenticated?: boolean;
     onLogin?: () => void;
+    onCreatePost?: () => void;
 }
 
-export function SideBar({ authenticated, onLogin }: SideBarProps) {
+export function SideBar({ authenticated, onLogin, onCreatePost }: SideBarProps) {
     return (
         <aside className="w-full lg:w-72 space-y-8">
             <div className="rounded-2xl bg-white p-6 border border-slate-200 shadow-sm">
@@ -21,9 +22,12 @@ export function SideBar({ authenticated, onLogin }: SideBarProps) {
                         </button>
                     </div>
                 )}
-                {authenticated && (
+                {authenticated && onCreatePost && (
                     <div className="mt-6 pt-6 border-t border-slate-100">
-                        <button className="w-full bg-slate-900 text-white py-2 rounded-xl text-sm font-bold hover:bg-orange-600 transition-colors">
+                        <button 
+                            onClick={onCreatePost}
+                            className="w-full bg-slate-900 text-white py-2 rounded-xl text-sm font-bold hover:bg-orange-600 transition-colors"
+                        >
                             Publish Post
                         </button>
                     </div>
