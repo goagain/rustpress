@@ -176,5 +176,30 @@ export const api = {
       id: String(data.id),
     };
   },
+
+  async uploadImage(file: File): Promise<{ url: string; filename: string }> {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const token = getAccessToken();
+    const headers: HeadersInit = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/upload/image`, {
+      method: 'POST',
+      body: formData,
+      // Don't set Content-Type header, browser will set it with boundary for multipart/form-data
+      headers,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to upload image');
+    }
+
+    return response.json();
+  },
 };
 

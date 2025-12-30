@@ -27,6 +27,18 @@ impl<PR: PostRepository, UR: UserRepository> AppState<PR, UR> {
     }
 }
 
+/// Extended application state that includes storage backend
+pub struct ExtendedAppState<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend> {
+    pub app_state: Arc<AppState<PR, UR>>,
+    pub storage: Arc<SB>,
+}
+
+impl<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend> ExtendedAppState<PR, UR, SB> {
+    pub fn new(app_state: Arc<AppState<PR, UR>>, storage: Arc<SB>) -> Self {
+        Self { app_state, storage }
+    }
+}
+
 /// Get all posts
 ///
 /// Returns a list of all posts, sorted by creation time in descending order
@@ -39,10 +51,10 @@ impl<PR: PostRepository, UR: UserRepository> AppState<PR, UR> {
     ),
     tag = "Posts"
 )]
-pub async fn get_posts<PR: PostRepository, UR: UserRepository>(
-    State(state): State<Arc<AppState<PR, UR>>>,
+pub async fn get_posts<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+    State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
 ) -> Result<Json<Vec<PostResponse>>, StatusCode> {
-    match state.post_repository.find_all().await {
+    match state.app_state.post_repository.find_all().await {
         Ok(posts) => Ok(Json(posts.into_iter().map(PostResponse::from).collect())),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
@@ -65,16 +77,16 @@ pub async fn get_posts<PR: PostRepository, UR: UserRepository>(
     ),
     tag = "Posts"
 )]
-pub async fn get_post<PR: PostRepository, UR: UserRepository>(
+pub async fn get_post<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
     Path(id): Path<String>,
-    State(state): State<Arc<AppState<PR, UR>>>,
+    State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
 ) -> Result<Json<PostResponse>, StatusCode> {
     let id_num: i64 = match id.parse() {
         Ok(num) => num,
         Err(_) => return Err(StatusCode::BAD_REQUEST),
     };
     
-        match state.post_repository.find_by_id(&id_num).await {
+        match state.app_state.post_repository.find_by_id(&id_num).await {
         Ok(Some(post)) => Ok(Json(PostResponse::from(post))),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -95,11 +107,11 @@ pub async fn get_post<PR: PostRepository, UR: UserRepository>(
     ),
     tag = "Posts"
 )]
-pub async fn create_post<PR: PostRepository, UR: UserRepository>(
-    State(state): State<Arc<AppState<PR, UR>>>,
+pub async fn create_post<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+    State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
     axum::Json(payload): axum::Json<CreatePostRequest>,
 ) -> Result<(axum::http::StatusCode, Json<PostResponse>), StatusCode> {
-    match state.post_repository.create(payload).await {
+    match state.app_state.post_repository.create(payload).await {
         Ok(post) => Ok((StatusCode::CREATED, Json(PostResponse::from(post)))),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
@@ -123,9 +135,9 @@ pub async fn create_post<PR: PostRepository, UR: UserRepository>(
     ),
     tag = "Posts"
 )]
-pub async fn update_post<PR: PostRepository, UR: UserRepository>(
+pub async fn update_post<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
     Path(id): Path<String>,
-    State(state): State<Arc<AppState<PR, UR>>>,
+    State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
     axum::Json(payload): axum::Json<UpdatePostRequest>,
 ) -> Result<Json<PostResponse>, StatusCode> {
     let id_num: i64 = match id.parse() {
@@ -134,7 +146,7 @@ pub async fn update_post<PR: PostRepository, UR: UserRepository>(
     };
     
     // Get existing post
-    let existing_post = match state.post_repository.find_by_id(&id_num).await {
+    let existing_post = match state.app_state.post_repository.find_by_id(&id_num).await {
         Ok(Some(post)) => post,
         Ok(None) => return Err(StatusCode::NOT_FOUND),
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -153,7 +165,7 @@ pub async fn update_post<PR: PostRepository, UR: UserRepository>(
         deleted_at: existing_post.deleted_at,
     };
 
-        match state.post_repository.update(&id_num, updated_post).await {
+        match state.app_state.post_repository.update(&id_num, updated_post).await {
         Ok(Some(post)) => Ok(Json(PostResponse::from(post))),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -177,16 +189,16 @@ pub async fn update_post<PR: PostRepository, UR: UserRepository>(
     ),
     tag = "Posts"
 )]
-pub async fn delete_post<PR: PostRepository, UR: UserRepository>(
+pub async fn delete_post<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
     Path(id): Path<String>,
-    State(state): State<Arc<AppState<PR, UR>>>,
+    State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
 ) -> Result<StatusCode, StatusCode> {
     let id_num: i64 = match id.parse() {
         Ok(num) => num,
         Err(_) => return Err(StatusCode::BAD_REQUEST),
     };
     
-    match state.post_repository.delete(&id_num).await {
+    match state.app_state.post_repository.delete(&id_num).await {
         Ok(true) => Ok(StatusCode::NO_CONTENT),
         Ok(false) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),

@@ -26,10 +26,10 @@ use utoipa::OpenApi;
     ),
     tag = "Users"
 )]
-pub async fn get_users<PR: PostRepository, UR: UserRepository>(
-    State(state): State<Arc<AppState<PR, UR>>>,
+pub async fn get_users<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+    State(state): State<Arc<crate::api::post_controller::ExtendedAppState<PR, UR, SB>>>,
 ) -> Result<Json<Vec<UserResponse>>, StatusCode> {
-    match state.user_repository.find_all().await {
+    match state.app_state.user_repository.find_all().await {
         Ok(users) => Ok(Json(users.into_iter().map(UserResponse::from).collect())),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
@@ -51,11 +51,11 @@ pub async fn get_users<PR: PostRepository, UR: UserRepository>(
     ),
     tag = "Users"
 )]
-pub async fn get_user<PR: PostRepository, UR: UserRepository>(
+pub async fn get_user<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
     Path(id): Path<i64>,
-    State(state): State<Arc<AppState<PR, UR>>>,
+    State(state): State<Arc<crate::api::post_controller::ExtendedAppState<PR, UR, SB>>>,
 ) -> Result<Json<UserResponse>, StatusCode> {
-    match state.user_repository.find_by_id(&id).await {
+    match state.app_state.user_repository.find_by_id(&id).await {
         Ok(Some(user)) => Ok(Json(UserResponse::from(user))),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -77,21 +77,21 @@ pub async fn get_user<PR: PostRepository, UR: UserRepository>(
     ),
     tag = "Users"
 )]
-pub async fn create_user<PR: PostRepository, UR: UserRepository>(
-    State(state): State<Arc<AppState<PR, UR>>>,
+pub async fn create_user<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+    State(state): State<Arc<crate::api::post_controller::ExtendedAppState<PR, UR, SB>>>,
     axum::Json(payload): axum::Json<CreateUserRequest>,
 ) -> Result<(axum::http::StatusCode, Json<UserResponse>), StatusCode> {
     // Check if username already exists
-    if let Ok(Some(_)) = state.user_repository.find_by_username(&payload.username).await {
+    if let Ok(Some(_)) = state.app_state.user_repository.find_by_username(&payload.username).await {
         return Err(StatusCode::CONFLICT);
     }
 
     // Check if email already exists
-    if let Ok(Some(_)) = state.user_repository.find_by_email(&payload.email).await {
+    if let Ok(Some(_)) = state.app_state.user_repository.find_by_email(&payload.email).await {
         return Err(StatusCode::CONFLICT);
     }
 
-    match state.user_repository.create(payload).await {
+    match state.app_state.user_repository.create(payload).await {
         Ok(user) => Ok((StatusCode::CREATED, Json(UserResponse::from(user)))),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
@@ -114,13 +114,13 @@ pub async fn create_user<PR: PostRepository, UR: UserRepository>(
     ),
     tag = "Users"
 )]
-pub async fn update_user<PR: PostRepository, UR: UserRepository>(
+pub async fn update_user<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
     Path(id): Path<i64>,
-    State(state): State<Arc<AppState<PR, UR>>>,
+    State(state): State<Arc<crate::api::post_controller::ExtendedAppState<PR, UR, SB>>>,
     axum::Json(payload): axum::Json<CreateUserRequest>,
 ) -> Result<Json<UserResponse>, StatusCode> {
     // Get existing user
-    let existing_user = match state.user_repository.find_by_id(&id).await {
+    let existing_user = match state.app_state.user_repository.find_by_id(&id).await {
         Ok(Some(user)) => user,
         Ok(None) => return Err(StatusCode::NOT_FOUND),
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -138,7 +138,7 @@ pub async fn update_user<PR: PostRepository, UR: UserRepository>(
         updated_at: existing_user.updated_at,
     };
 
-    match state.user_repository.update(&id, updated_user).await {
+    match state.app_state.user_repository.update(&id, updated_user).await {
         Ok(Some(user)) => Ok(Json(UserResponse::from(user))),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -161,11 +161,11 @@ pub async fn update_user<PR: PostRepository, UR: UserRepository>(
     ),
     tag = "Users"
 )]
-pub async fn delete_user<PR: PostRepository, UR: UserRepository>(
+pub async fn delete_user<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
     Path(id): Path<i64>,
-    State(state): State<Arc<AppState<PR, UR>>>,
+    State(state): State<Arc<crate::api::post_controller::ExtendedAppState<PR, UR, SB>>>,
 ) -> Result<StatusCode, StatusCode> {
-    match state.user_repository.delete(&id).await {
+    match state.app_state.user_repository.delete(&id).await {
         Ok(true) => Ok(StatusCode::NO_CONTENT),
         Ok(false) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -186,12 +186,12 @@ pub async fn delete_user<PR: PostRepository, UR: UserRepository>(
     ),
     tag = "Auth"
 )]
-pub async fn login<PR: PostRepository, UR: UserRepository>(
-    State(state): State<Arc<AppState<PR, UR>>>,
+pub async fn login<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+    State(state): State<Arc<crate::api::post_controller::ExtendedAppState<PR, UR, SB>>>,
     axum::Json(payload): axum::Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>, StatusCode> {
     // Find user
-    let user = match state.user_repository.find_by_username(&payload.username).await {
+    let user = match state.app_state.user_repository.find_by_username(&payload.username).await {
         Ok(Some(user)) => user,
         Ok(None) => return Err(StatusCode::UNAUTHORIZED),
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -237,8 +237,8 @@ pub async fn login<PR: PostRepository, UR: UserRepository>(
     ),
     tag = "Auth"
 )]
-pub async fn refresh_token<PR: PostRepository, UR: UserRepository>(
-    State(state): State<Arc<AppState<PR, UR>>>,
+pub async fn refresh_token<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+    State(state): State<Arc<crate::api::post_controller::ExtendedAppState<PR, UR, SB>>>,
     axum::Json(payload): axum::Json<RefreshTokenRequest>,
 ) -> Result<Json<RefreshTokenResponse>, StatusCode> {
     // Verify refresh token
@@ -246,7 +246,7 @@ pub async fn refresh_token<PR: PostRepository, UR: UserRepository>(
         .map_err(|_| StatusCode::UNAUTHORIZED)?;
 
     // Get user information
-    let user = match state.user_repository.find_by_id(&claims.sub).await {
+    let user = match state.app_state.user_repository.find_by_id(&claims.sub).await {
         Ok(Some(user)) => user,
         Ok(None) => return Err(StatusCode::UNAUTHORIZED),
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),

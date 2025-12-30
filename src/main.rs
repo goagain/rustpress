@@ -5,6 +5,7 @@ mod entity;
 mod migration;
 mod repository;
 mod seed;
+mod storage;
 
 use api::create_router;
 use repository::{PostgresPostRepository, PostgresUserRepository, PostRepository, UserRepository};
@@ -65,8 +66,23 @@ async fn main() {
     // Create application state (contains Post and User Repository)
     let app_state = Arc::new(api::post_controller::AppState::new(post_repository, user_repository));
 
+    // Initialize storage backend (local filesystem for now, can be switched to S3 later)
+    let storage_dir = std::env::var("STORAGE_DIR").unwrap_or_else(|_| "uploads".to_string());
+    let storage_base_url = std::env::var("STORAGE_BASE_URL")
+        .unwrap_or_else(|_| "http://localhost:3000/uploads".to_string());
+    
+    let storage = Arc::new(storage::LocalStorage::new(&storage_dir, storage_base_url.clone()));
+    
+    // Ensure storage directory exists
+    storage.ensure_directory().await
+        .expect("Failed to create storage directory");
+    
+    tracing::info!("✅ Storage initialized");
+    tracing::info!("   Directory: {}", storage_dir);
+    tracing::info!("   Base URL: {}", storage_base_url);
+
     // Create routes (API Controller layer)
-    let app = create_router(app_state);
+    let app = create_router(app_state, storage);
 
     // Start server
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
@@ -92,6 +108,7 @@ async fn main() {
     tracing::info!("   DELETE /api/users/:id     - Delete user");
     tracing::info!("   POST   /api/auth/login    - User login");
     tracing::info!("   POST   /api/auth/refresh  - Refresh access token");
+    tracing::info!("   POST   /api/upload/image  - Upload image");
     tracing::info!("");
     tracing::info!("📚 API Documentation:");
     tracing::info!("   Swagger UI: http://localhost:3000/swagger-ui");

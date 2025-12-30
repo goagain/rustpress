@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Save, Eye, EyeOff, X, Loader2 } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Save, Eye, EyeOff, X, Loader2, Image as ImageIcon } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -19,6 +19,9 @@ export function CreatePost({ onSuccess, onCancel }: CreatePostProps) {
   const [showPreview, setShowPreview] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,6 +116,97 @@ export function CreatePost({ onSuccess, onCancel }: CreatePostProps) {
     },
   };
 
+  // Handle image upload
+  const handleImageUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file');
+      return;
+    }
+
+    setUploadingImage(true);
+    setError('');
+
+    try {
+      const result = await api.uploadImage(file);
+      
+      // Insert image markdown at cursor position
+      const textarea = textareaRef.current;
+      if (textarea) {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const imageMarkdown = `![${file.name}](${result.url})`;
+        const newContent = 
+          content.substring(0, start) + 
+          imageMarkdown + 
+          content.substring(end);
+        setContent(newContent);
+        
+        // Set cursor position after inserted markdown
+        setTimeout(() => {
+          textarea.focus();
+          const newPosition = start + imageMarkdown.length;
+          textarea.setSelectionRange(newPosition, newPosition);
+        }, 0);
+      } else {
+        // If no cursor position, append to end
+        setContent(content + `\n![${file.name}](${result.url})\n`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to upload image');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  // Handle file input change
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleImageUpload(file);
+    }
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Handle paste event
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData.items;
+    
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      
+      // Check if pasted item is an image
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        
+        const file = item.getAsFile();
+        if (file) {
+          await handleImageUpload(file);
+        }
+        break;
+      }
+    }
+  };
+
+  // Handle drag and drop
+  const handleDrop = async (e: React.DragEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      const file = files[0];
+      if (file.type.startsWith('image/')) {
+        await handleImageUpload(file);
+      }
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+  };
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-8">
       <div className="flex items-center justify-between mb-6">
@@ -175,37 +269,71 @@ export function CreatePost({ onSuccess, onCancel }: CreatePostProps) {
             <label htmlFor="content" className="block text-sm font-medium text-slate-700">
               Content (Markdown) *
             </label>
-            <button
-              type="button"
-              onClick={() => setShowPreview(!showPreview)}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              {showPreview ? (
-                <>
-                  <EyeOff size={16} />
-                  Hide Preview
-                </>
-              ) : (
-                <>
-                  <Eye size={16} />
-                  Show Preview
-                </>
-              )}
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Image upload button */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileInputChange}
+                className="hidden"
+                disabled={uploadingImage || loading}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingImage || loading}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Upload image"
+              >
+                {uploadingImage ? (
+                  <>
+                    <Loader2 className="animate-spin" size={16} />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <ImageIcon size={16} />
+                    Upload Image
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowPreview(!showPreview)}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                {showPreview ? (
+                  <>
+                    <EyeOff size={16} />
+                    Hide Preview
+                  </>
+                ) : (
+                  <>
+                    <Eye size={16} />
+                    Show Preview
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           <div className={showPreview ? 'grid grid-cols-1 lg:grid-cols-2 gap-4' : ''}>
             {/* Editor */}
             <div className={showPreview ? '' : 'w-full'}>
               <textarea
+                ref={textareaRef}
                 id="content"
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
+                onPaste={handlePaste}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
                 required
                 rows={showPreview ? 20 : 15}
                 className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-colors font-mono text-sm resize-y"
-                placeholder="Write your post content in Markdown format..."
-                disabled={loading}
+                placeholder="Write your post content in Markdown format... You can paste images directly here!"
+                disabled={loading || uploadingImage}
               />
               <p className="mt-2 text-xs text-slate-500">
                 Supports GitHub Flavored Markdown: lists, tables, code blocks, etc.
