@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import rehypeHighlight from 'rehype-highlight';
 import { api } from '../../services/api';
+import { normalizeImageUrl } from '../../utils/url';
 import type { PostResponse } from '../../types';
 import 'highlight.js/styles/github.css';
 
@@ -113,6 +114,18 @@ export function PostDetail({ postId, onBack }: PostDetailProps) {
           remarkPlugins={[remarkGfm]}
           rehypePlugins={[rehypeRaw, rehypeHighlight]}
           components={{
+            // Handle images: convert server URLs to relative paths
+            img: ({node, className, src, alt, ...props}: any) => {
+              const normalizedSrc = normalizeImageUrl(src || '');
+              return (
+                <img
+                  src={normalizedSrc}
+                  alt={alt}
+                  className={`${className || ''} rounded-lg shadow-md`}
+                  {...props}
+                />
+              );
+            },
             // Ensure proper rendering of all markdown elements
             ul: ({node, className, ...props}) => (
               <ul className={`${className || ''} list-disc pl-6`} {...props} />

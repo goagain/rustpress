@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import rehypeHighlight from 'rehype-highlight';
 import { api } from '../../services/api';
+import { normalizeImageUrl } from '../../utils/url';
 import 'highlight.js/styles/github.css';
 
 interface CreatePostProps {
@@ -74,6 +75,18 @@ export function CreatePost({ onSuccess, onCancel }: CreatePostProps) {
   };
 
   const markdownComponents = {
+    // Handle images: convert server URLs to relative paths
+    img: ({node, className, src, alt, ...props}: any) => {
+      const normalizedSrc = normalizeImageUrl(src || '');
+      return (
+        <img
+          src={normalizedSrc}
+          alt={alt}
+          className={`${className || ''} rounded-lg shadow-md`}
+          {...props}
+        />
+      );
+    },
     ul: ({node, className, ...props}: any) => (
       <ul className={`${className || ''} list-disc pl-6`} {...props} />
     ),
@@ -129,12 +142,15 @@ export function CreatePost({ onSuccess, onCancel }: CreatePostProps) {
     try {
       const result = await api.uploadImage(file);
       
+      // Normalize URL to relative path if from same server
+      const normalizedUrl = normalizeImageUrl(result.url);
+      
       // Insert image markdown at cursor position
       const textarea = textareaRef.current;
       if (textarea) {
         const start = textarea.selectionStart;
         const end = textarea.selectionEnd;
-        const imageMarkdown = `![${file.name}](${result.url})`;
+        const imageMarkdown = `![${file.name}](${normalizedUrl})`;
         const newContent = 
           content.substring(0, start) + 
           imageMarkdown + 
@@ -149,7 +165,7 @@ export function CreatePost({ onSuccess, onCancel }: CreatePostProps) {
         }, 0);
       } else {
         // If no cursor position, append to end
-        setContent(content + `\n![${file.name}](${result.url})\n`);
+        setContent(content + `\n![${file.name}](${normalizedUrl})\n`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to upload image');

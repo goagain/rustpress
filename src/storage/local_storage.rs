@@ -63,8 +63,9 @@ impl StorageBackend for LocalStorage {
         // Write file to disk
         tokio::fs::write(&file_path, file_data).await?;
 
-        // Return public URL
-        let url = format!("{}/{}", self.base_url.trim_end_matches('/'), unique_name);
+        // Return relative path for local storage (e.g., "/uploads/xxx.jpg")
+        // This makes URLs portable and independent of server domain
+        let url = format!("/uploads/{}", unique_name);
         Ok(url)
     }
 
