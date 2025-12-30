@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Calendar, Tag, ArrowRight } from 'lucide-react';
 import { api } from '../../services/api';
+import { markdownToPlainText } from '../../utils/markdown';
 import type { PostResponse } from '../../types';
 
 interface PostListProps {
@@ -80,8 +81,8 @@ export function PostList({ onPostSelect }: PostListProps) {
                 {post.title}
               </h2>
               <p className="text-slate-600 line-clamp-2 mb-4">
-                {post.content.replace(/<[^>]*>/g, '').substring(0, 150)}
-                {post.content.replace(/<[^>]*>/g, '').length > 150 && '...'}
+                {markdownToPlainText(post.content).substring(0, 150)}
+                {markdownToPlainText(post.content).length > 150 && '...'}
               </p>
               <div className="flex items-center gap-2 text-sm text-orange-600 font-medium">
                 Read more

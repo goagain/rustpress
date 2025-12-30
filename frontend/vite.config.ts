@@ -8,12 +8,18 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // 只代理 API 请求到 Rust 后端
-      // 所有前端路由都由 Vite 处理
+      // Proxy API requests to Rust backend
+      // All frontend routes are handled by Vite
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
       },
     },
+  },
+  // @ts-ignore - Vitest types
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.ts',
   },
 })
