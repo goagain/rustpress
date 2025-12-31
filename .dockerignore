@@ -17,8 +17,8 @@ docs/
 
 # Rust
 target/
-Cargo.lock
 **/*.rs.bk
+# Note: Cargo.lock is needed for Docker builds, so don't ignore it
 
 # Node
 node_modules/
