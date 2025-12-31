@@ -1,4 +1,4 @@
-use crate::dto::{Post, CreatePostRequest};
+use crate::dto::{Post, CreatePostRequest, PostVersion, PostDraft, SaveDraftRequest};
 use async_trait::async_trait;
 
 /// Post repository interface
@@ -17,9 +17,23 @@ pub trait PostRepository: Send + Sync {
         &self,
         id: &i64,
         post: Post,
+        create_version: bool,
+        change_note: Option<String>,
+        user_id: i64,
     ) -> Result<Option<Post>, Box<dyn std::error::Error + Send + Sync>>;
     async fn delete(&self, id: &i64) -> Result<bool, Box<dyn std::error::Error + Send + Sync>>;
     async fn archive(&self, id: &i64) -> Result<bool, Box<dyn std::error::Error + Send + Sync>>;
     async fn restore(&self, id: &i64) -> Result<bool, Box<dyn std::error::Error + Send + Sync>>;
     async fn hard_delete(&self, id: &i64) -> Result<bool, Box<dyn std::error::Error + Send + Sync>>;
+    
+    // Version management
+    async fn get_versions(&self, post_id: &i64) -> Result<Vec<PostVersion>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn get_version(&self, version_id: &i64) -> Result<Option<PostVersion>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn restore_from_version(&self, post_id: &i64, version_id: &i64, user_id: i64) -> Result<Option<Post>, Box<dyn std::error::Error + Send + Sync>>;
+    
+    // Draft management
+    async fn save_draft(&self, author_id: i64, request: SaveDraftRequest) -> Result<PostDraft, Box<dyn std::error::Error + Send + Sync>>;
+    async fn get_draft(&self, post_id: Option<i64>, author_id: i64) -> Result<Option<PostDraft>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn delete_draft(&self, post_id: Option<i64>, author_id: i64) -> Result<bool, Box<dyn std::error::Error + Send + Sync>>;
+    async fn get_all_drafts(&self, author_id: i64) -> Result<Vec<PostDraft>, Box<dyn std::error::Error + Send + Sync>>;
 }

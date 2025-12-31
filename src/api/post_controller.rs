@@ -2,11 +2,13 @@ use crate::dto::{
     CreatePostRequest, Post, PostResponse, UpdatePostRequest,
     CreateUserRequest, LoginRequest, LoginResponse, RefreshTokenRequest, RefreshTokenResponse,
     UserResponse, UserRole,
+    PostVersionResponse, PostDraftResponse, SaveDraftRequest,
 };
 use crate::repository::{PostRepository, UserRepository};
+use crate::auth::jwt::JwtUtil;
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{StatusCode, HeaderMap},
     response::Json,
 };
 use std::sync::Arc;
@@ -138,6 +140,7 @@ pub async fn create_post<PR: PostRepository, UR: UserRepository, SB: crate::stor
 pub async fn update_post<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
     Path(id): Path<String>,
     State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
+    headers: HeaderMap,
     axum::Json(payload): axum::Json<UpdatePostRequest>,
 ) -> Result<Json<PostResponse>, StatusCode> {
     let id_num: i64 = match id.parse() {
@@ -152,6 +155,14 @@ pub async fn update_post<PR: PostRepository, UR: UserRepository, SB: crate::stor
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
 
+    // Extract user_id from JWT token for version creation
+    let user_id = headers.get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .and_then(|token| JwtUtil::verify_token(token).ok())
+        .map(|claims| claims.sub)
+        .unwrap_or(existing_post.author_id); // Fallback to author_id if token extraction fails
+
     // Build updated post
     let updated_post = Post {
         id: existing_post.id,
@@ -165,7 +176,13 @@ pub async fn update_post<PR: PostRepository, UR: UserRepository, SB: crate::stor
         deleted_at: existing_post.deleted_at,
     };
 
-        match state.app_state.post_repository.update(&id_num, updated_post).await {
+        match state.app_state.post_repository.update(
+            &id_num,
+            updated_post,
+            payload.create_version,
+            payload.change_note,
+            user_id, // Use extracted user_id from JWT token
+        ).await {
         Ok(Some(post)) => Ok(Json(PostResponse::from(post))),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -344,3 +361,248 @@ fn update_post_doc(_id: String, _payload: UpdatePostRequest) {}
 #[allow(dead_code)]
 fn delete_post_doc(_id: String) {}
 
+// Version management endpoints
+
+/// Get all versions of a post
+#[utoipa::path(
+    get,
+    path = "/api/posts/{id}/versions",
+    params(
+        ("id" = String, Path, description = "Post ID")
+    ),
+    responses(
+        (status = 200, description = "Successfully retrieved versions", body = Vec<PostVersionResponse>),
+        (status = 400, description = "Bad request"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Posts"
+)]
+pub async fn get_post_versions<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+    Path(id): Path<String>,
+    State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
+) -> Result<Json<Vec<PostVersionResponse>>, StatusCode> {
+    let id_num: i64 = match id.parse() {
+        Ok(num) => num,
+        Err(_) => return Err(StatusCode::BAD_REQUEST),
+    };
+    
+    match state.app_state.post_repository.get_versions(&id_num).await {
+        Ok(versions) => Ok(Json(versions.into_iter().map(PostVersionResponse::from).collect())),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+/// Get a specific version
+#[utoipa::path(
+    get,
+    path = "/api/posts/{post_id}/versions/{version_id}",
+    params(
+        ("post_id" = String, Path, description = "Post ID"),
+        ("version_id" = String, Path, description = "Version ID")
+    ),
+    responses(
+        (status = 200, description = "Successfully retrieved version", body = PostVersionResponse),
+        (status = 404, description = "Version not found"),
+        (status = 400, description = "Bad request"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Posts"
+)]
+pub async fn get_post_version<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+    Path((post_id, version_id)): Path<(String, String)>,
+    State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
+) -> Result<Json<PostVersionResponse>, StatusCode> {
+    let version_id_num: i64 = match version_id.parse() {
+        Ok(num) => num,
+        Err(_) => return Err(StatusCode::BAD_REQUEST),
+    };
+    
+    match state.app_state.post_repository.get_version(&version_id_num).await {
+        Ok(Some(version)) => Ok(Json(PostVersionResponse::from(version))),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+/// Restore a post from a version
+#[utoipa::path(
+    post,
+    path = "/api/posts/{post_id}/versions/{version_id}/restore",
+    params(
+        ("post_id" = String, Path, description = "Post ID"),
+        ("version_id" = String, Path, description = "Version ID")
+    ),
+    responses(
+        (status = 200, description = "Successfully restored post", body = PostResponse),
+        (status = 404, description = "Post or version not found"),
+        (status = 400, description = "Bad request"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Posts"
+)]
+pub async fn restore_post_from_version<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+    Path((post_id, version_id)): Path<(String, String)>,
+    State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
+) -> Result<Json<PostResponse>, StatusCode> {
+    let post_id_num: i64 = match post_id.parse() {
+        Ok(num) => num,
+        Err(_) => return Err(StatusCode::BAD_REQUEST),
+    };
+    let version_id_num: i64 = match version_id.parse() {
+        Ok(num) => num,
+        Err(_) => return Err(StatusCode::BAD_REQUEST),
+    };
+    
+    // Get post to get author_id for user_id
+    let post = match state.app_state.post_repository.find_by_id(&post_id_num).await {
+        Ok(Some(p)) => p,
+        Ok(None) => return Err(StatusCode::NOT_FOUND),
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+    
+    match state.app_state.post_repository.restore_from_version(&post_id_num, &version_id_num, post.author_id).await {
+        Ok(Some(restored_post)) => Ok(Json(PostResponse::from(restored_post))),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+// Draft management endpoints
+
+/// Save or update a draft
+#[utoipa::path(
+    post,
+    path = "/api/drafts",
+    request_body = SaveDraftRequest,
+    responses(
+        (status = 200, description = "Successfully saved draft", body = PostDraftResponse),
+        (status = 400, description = "Bad request"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Drafts"
+)]
+pub async fn save_draft<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+    State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
+    axum::Json(payload): axum::Json<SaveDraftRequest>,
+) -> Result<Json<PostDraftResponse>, StatusCode> {
+    // Get author_id from JWT token (for now, we'll need to extract from headers)
+    // For simplicity, we'll require author_id in the request for now
+    // TODO: Extract from JWT token
+    return Err(StatusCode::NOT_IMPLEMENTED);
+}
+
+/// Get a draft (for editing a post or creating a new one)
+#[utoipa::path(
+    get,
+    path = "/api/drafts",
+    params(
+        ("post_id" = Option<String>, Query, description = "Post ID (optional, for editing existing post)")
+    ),
+    responses(
+        (status = 200, description = "Successfully retrieved draft", body = PostDraftResponse),
+        (status = 404, description = "Draft not found"),
+        (status = 400, description = "Bad request"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Drafts"
+)]
+pub async fn get_draft<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+    State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<PostDraftResponse>, StatusCode> {
+    // Get author_id from JWT token
+    // TODO: Extract from JWT token
+    return Err(StatusCode::NOT_IMPLEMENTED);
+}
+
+/// Get all drafts for the current user
+#[utoipa::path(
+    get,
+    path = "/api/drafts/all",
+    responses(
+        (status = 200, description = "Successfully retrieved drafts", body = Vec<PostDraftResponse>),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Drafts"
+)]
+pub async fn get_all_drafts<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+    State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
+) -> Result<Json<Vec<PostDraftResponse>>, StatusCode> {
+    // Get author_id from JWT token
+    // TODO: Extract from JWT token
+    return Err(StatusCode::NOT_IMPLEMENTED);
+}
+
+/// Delete a draft
+#[utoipa::path(
+    delete,
+    path = "/api/drafts",
+    params(
+        ("post_id" = Option<String>, Query, description = "Post ID (optional)")
+    ),
+    responses(
+        (status = 204, description = "Successfully deleted draft"),
+        (status = 404, description = "Draft not found"),
+        (status = 400, description = "Bad request"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Drafts"
+)]
+pub async fn delete_draft<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+    State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Result<StatusCode, StatusCode> {
+    // Get author_id from JWT token
+    // TODO: Extract from JWT token
+    return Err(StatusCode::NOT_IMPLEMENTED);
+}
+
+// Documentation wrapper functions
+#[utoipa::path(
+    get,
+    path = "/api/posts/{id}/versions",
+    params(
+        ("id" = String, Path, description = "Post ID")
+    ),
+    responses(
+        (status = 200, description = "Successfully retrieved versions", body = Vec<PostVersionResponse>),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Posts"
+)]
+#[allow(dead_code)]
+fn get_post_versions_doc(_id: String) {}
+
+#[utoipa::path(
+    get,
+    path = "/api/posts/{post_id}/versions/{version_id}",
+    params(
+        ("post_id" = String, Path, description = "Post ID"),
+        ("version_id" = String, Path, description = "Version ID")
+    ),
+    responses(
+        (status = 200, description = "Successfully retrieved version", body = PostVersionResponse),
+        (status = 404, description = "Version not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Posts"
+)]
+#[allow(dead_code)]
+fn get_post_version_doc(_post_id: String, _version_id: String) {}
+
+#[utoipa::path(
+    post,
+    path = "/api/posts/{post_id}/versions/{version_id}/restore",
+    params(
+        ("post_id" = String, Path, description = "Post ID"),
+        ("version_id" = String, Path, description = "Version ID")
+    ),
+    responses(
+        (status = 200, description = "Successfully restored post", body = PostResponse),
+        (status = 404, description = "Post or version not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Posts"
+)]
+#[allow(dead_code)]
+fn restore_post_from_version_doc(_post_id: String, _version_id: String) {}

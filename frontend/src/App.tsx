@@ -5,6 +5,7 @@ import { LoginModal } from './components/Auth/LoginModal';
 import { PostList } from './components/Blog/PostList';
 import { PostDetail } from './components/Blog/PostDetail';
 import { CreatePost } from './components/Blog/CreatePost';
+import { PostVersions } from './components/Blog/PostVersions';
 import { isAuthenticated, clearTokens } from './services/api';
 import type { PostResponse } from './types';
 
@@ -12,7 +13,9 @@ export default function App() {
   const [authenticated, setAuthenticated] = useState(isAuthenticated());
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [selectedPost, setSelectedPost] = useState<PostResponse | null>(null);
-  const [currentView, setCurrentView] = useState<'list' | 'detail' | 'create'>('list');
+  const [editingPost, setEditingPost] = useState<PostResponse | null>(null);
+  const [showVersions, setShowVersions] = useState(false);
+  const [currentView, setCurrentView] = useState<'list' | 'detail' | 'create' | 'edit'>('list');
 
   // Monitor authentication state changes
   useEffect(() => {
@@ -70,6 +73,31 @@ export default function App() {
 
   const handleCancelCreate = () => {
     setCurrentView('list');
+    setEditingPost(null);
+  };
+
+  const handleEditPost = (post: PostResponse) => {
+    setEditingPost(post);
+    setCurrentView('edit');
+  };
+
+  const handlePostUpdated = () => {
+    setCurrentView('list');
+    setEditingPost(null);
+    setSelectedPost(null);
+    window.location.reload();
+  };
+
+  const handleVersionsClose = () => {
+    setShowVersions(false);
+  };
+
+  const handleVersionRestored = () => {
+    setShowVersions(false);
+    if (selectedPost) {
+      // Reload the post
+      window.location.reload();
+    }
   };
 
   return (
@@ -86,8 +114,19 @@ export default function App() {
           <div className="flex-1 min-w-0">
             {currentView === 'create' ? (
               <CreatePost onSuccess={handlePostCreated} onCancel={handleCancelCreate} />
+            ) : currentView === 'edit' && editingPost ? (
+              <CreatePost 
+                postId={editingPost.id}
+                initialPost={editingPost}
+                onSuccess={handlePostUpdated} 
+                onCancel={handleCancelCreate} 
+              />
             ) : currentView === 'detail' && selectedPost ? (
-              <PostDetail postId={selectedPost.id} onBack={handleBackToList} />
+              <PostDetail 
+                postId={selectedPost.id} 
+                onBack={handleBackToList}
+                onEdit={handleEditPost}
+              />
             ) : (
               <div>
                 <header className="mb-8">
@@ -115,6 +154,15 @@ export default function App() {
         onClose={() => setShowLoginModal(false)}
         onSuccess={handleLoginSuccess}
       />
+
+      {/* Version history modal */}
+      {showVersions && selectedPost && (
+        <PostVersions
+          postId={selectedPost.id}
+          onClose={handleVersionsClose}
+          onRestore={handleVersionRestored}
+        />
+      )}
     </div>
   );
 }

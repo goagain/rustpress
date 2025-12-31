@@ -3,10 +3,11 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "posts")]
+#[sea_orm(table_name = "post_drafts")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
+    pub post_id: Option<i64>,
     pub title: String,
     #[sea_orm(column_type = "Text")]
     pub content: String,
@@ -14,16 +15,18 @@ pub struct Model {
     pub author_id: i64,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
-    pub archived_at: Option<DateTimeWithTimeZone>,
-    pub deleted_at: Option<DateTimeWithTimeZone>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(has_many = "super::post_drafts::Entity")]
-    PostDrafts,
-    #[sea_orm(has_many = "super::post_versions::Entity")]
-    PostVersions,
+    #[sea_orm(
+        belongs_to = "super::posts::Entity",
+        from = "Column::PostId",
+        to = "super::posts::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
+    Posts,
     #[sea_orm(
         belongs_to = "super::users::Entity",
         from = "Column::AuthorId",
@@ -34,15 +37,9 @@ pub enum Relation {
     Users,
 }
 
-impl Related<super::post_drafts::Entity> for Entity {
+impl Related<super::posts::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::PostDrafts.def()
-    }
-}
-
-impl Related<super::post_versions::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::PostVersions.def()
+        Relation::Posts.def()
     }
 }
 

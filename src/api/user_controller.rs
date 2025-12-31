@@ -1,4 +1,3 @@
-use crate::api::post_controller::AppState;
 use crate::auth::JwtUtil;
 use crate::dto::{
     CreateUserRequest, LoginRequest, LoginResponse, RefreshTokenRequest, RefreshTokenResponse,
@@ -12,7 +11,6 @@ use axum::{
     response::Json,
 };
 use std::sync::Arc;
-use utoipa::OpenApi;
 
 /// Get all users
 ///

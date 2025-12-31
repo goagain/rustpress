@@ -9,7 +9,11 @@ pub mod post;
 pub mod user;
 
 // Re-export commonly used DTOs
-pub use post::{Post, CreatePostRequest, UpdatePostRequest, PostResponse};
+pub use post::{
+    Post, CreatePostRequest, UpdatePostRequest, PostResponse,
+    PostVersion, PostVersionResponse, CreateVersionRequest,
+    PostDraft, PostDraftResponse, SaveDraftRequest,
+};
 pub use user::{
     User, UserRole, CreateUserRequest, LoginRequest, LoginResponse,
     RefreshTokenRequest, RefreshTokenResponse, UserResponse,

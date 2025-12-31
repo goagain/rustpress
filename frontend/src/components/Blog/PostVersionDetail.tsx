@@ -1,66 +1,40 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Tag, ArrowLeft, Edit, History } from 'lucide-react';
+import { Calendar, Tag, ArrowLeft, Clock, Archive } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import rehypeHighlight from 'rehype-highlight';
-import { api, isAuthenticated } from '../../services/api';
+import { api } from '../../services/api';
 import { normalizeImageUrl } from '../../utils/url';
-import { PostVersions } from './PostVersions';
-import type { PostResponse } from '../../types';
+import type { PostVersionResponse } from '../../types';
 import 'highlight.js/styles/github.css';
 
-interface PostDetailProps {
+interface PostVersionDetailProps {
   postId: string;
-  onBack?: () => void;
-  onEdit?: (post: PostResponse) => void;
+  versionId: string;
+  onBack: () => void;
 }
 
-export function PostDetail({ postId, onBack, onEdit }: PostDetailProps) {
-  const [post, setPost] = useState<PostResponse | null>(null);
+export function PostVersionDetail({ postId, versionId, onBack }: PostVersionDetailProps) {
+  const [version, setVersion] = useState<PostVersionResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [isAuthor, setIsAuthor] = useState(false);
-  const [showVersions, setShowVersions] = useState(false);
 
   useEffect(() => {
-    loadPost();
-    checkIsAuthor();
-  }, [postId]);
+    loadVersion();
+  }, [postId, versionId]);
 
-  const loadPost = async () => {
+  const loadVersion = async () => {
     try {
       setLoading(true);
-      const data = await api.getPost(postId);
-      setPost(data);
+      const data = await api.getPostVersion(postId, versionId);
+      setVersion(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load post');
+      setError(err instanceof Error ? err.message : 'Failed to load version');
     } finally {
       setLoading(false);
     }
   };
-
-  const checkIsAuthor = async () => {
-    if (!isAuthenticated()) {
-      setIsAuthor(false);
-      return;
-    }
-
-    try {
-      const user = await api.getCurrentUser();
-      if (post && user.id === post.author_id) {
-        setIsAuthor(true);
-      }
-    } catch (err) {
-      setIsAuthor(false);
-    }
-  };
-
-  useEffect(() => {
-    if (post) {
-      checkIsAuthor();
-    }
-  }, [post]);
 
   if (loading) {
     return (
@@ -78,35 +52,27 @@ export function PostDetail({ postId, onBack, onEdit }: PostDetailProps) {
     );
   }
 
-  if (!post) {
+  if (!version) {
     return (
       <div className="text-center py-12 text-slate-500">
-        <p>Post not found</p>
+        <p>Version not found</p>
       </div>
     );
   }
 
-  const handleEdit = () => {
-    if (post && onEdit) {
-      onEdit(post);
-    }
-  };
-
-  const handleShowVersions = () => {
-    setShowVersions(true);
-  };
-
-  const handleVersionsClose = () => {
-    setShowVersions(false);
-  };
-
-  const handleVersionRestored = () => {
-    setShowVersions(false);
-    loadPost(); // Reload the post
-  };
-
   return (
     <article className="bg-white rounded-xl border border-slate-200 p-8">
+      {/* Historical version banner */}
+      <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+        <div className="flex items-center gap-2 text-amber-800">
+          <Archive size={20} />
+          <span className="font-semibold">Historical Version</span>
+        </div>
+        <p className="text-sm text-amber-700 mt-1">
+          You are viewing a historical version of this post. This is not the current version.
+        </p>
+      </div>
+
       <div className="flex items-center justify-between mb-6">
         {onBack && (
           <button
@@ -114,46 +80,45 @@ export function PostDetail({ postId, onBack, onEdit }: PostDetailProps) {
             className="inline-flex items-center gap-2 text-slate-600 hover:text-orange-600 transition-colors"
           >
             <ArrowLeft size={20} />
-            Back to List
+            Back to Versions
           </button>
-        )}
-        {isAuthor && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleShowVersions}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
-            >
-              <History size={16} />
-              History
-            </button>
-            <button
-              onClick={handleEdit}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors"
-            >
-              <Edit size={16} />
-              Edit
-            </button>
-          </div>
         )}
       </div>
 
       <header className="mb-8">
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
           <span className="inline-flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-700 text-sm font-medium rounded-full">
             <Tag size={14} />
-            {post.category}
+            {version.category}
+          </span>
+          <span className="inline-flex items-center gap-1 px-3 py-1 bg-slate-100 text-slate-700 text-sm font-medium rounded-full">
+            <span className="font-semibold">Version {version.version_number}</span>
           </span>
           <span className="inline-flex items-center gap-1 text-sm text-slate-500">
             <Calendar size={14} />
-            {new Date(post.created_at).toLocaleDateString('en-US', {
+            {new Date(version.created_at).toLocaleDateString('en-US', {
               year: 'numeric',
               month: 'long',
               day: 'numeric',
             })}
           </span>
+          <span className="inline-flex items-center gap-1 text-sm text-slate-500">
+            <Clock size={14} />
+            {new Date(version.created_at).toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </span>
         </div>
+        {version.change_note && (
+          <div className="mb-4 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+            <p className="text-sm text-slate-600">
+              <span className="font-semibold">Change Note:</span> {version.change_note}
+            </p>
+          </div>
+        )}
         <h1 className="text-4xl font-extrabold text-slate-900 leading-tight mb-4">
-          {post.title}
+          {version.title}
         </h1>
       </header>
 
@@ -236,19 +201,9 @@ export function PostDetail({ postId, onBack, onEdit }: PostDetailProps) {
             },
           }}
         >
-          {post.content}
+          {version.content}
         </ReactMarkdown>
       </div>
-
-      {/* Version history modal */}
-      {showVersions && (
-        <PostVersions
-          postId={postId}
-          onClose={handleVersionsClose}
-          onRestore={handleVersionRestored}
-        />
-      )}
     </article>
   );
 }
-

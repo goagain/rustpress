@@ -1,5 +1,5 @@
-use crate::dto::{CreatePostRequest, Post};
-use crate::entity::posts;
+use crate::dto::{CreatePostRequest, Post, PostVersion, PostDraft, SaveDraftRequest};
+use crate::entity::{posts, post_versions, post_drafts};
 use crate::repository::PostRepository;
 use async_trait::async_trait;
 use chrono::Utc;
@@ -64,12 +64,42 @@ impl PostRepository for PostgresPostRepository {
         &self,
         id: &i64,
         post: Post,
+        create_version: bool,
+        change_note: Option<String>,
+        user_id: i64,
     ) -> Result<Option<Post>, Box<dyn std::error::Error + Send + Sync>> {
-        // Convert i64 to Uuid (posts table id is Uuid type)
         let model = posts::Entity::find_by_id(*id).one(self.db.as_ref()).await?;
 
-        if let Some(model) = model {
-            let mut active_model: posts::ActiveModel = model.into();
+        if let Some(old_model) = model {
+            // Create version before update if requested
+            if create_version {
+                // Get the next version number
+                let max_version = post_versions::Entity::find()
+                    .filter(post_versions::Column::PostId.eq(*id))
+                    .order_by_desc(post_versions::Column::VersionNumber)
+                    .one(self.db.as_ref())
+                    .await?;
+                
+                let next_version = match max_version {
+                    Some(v) => v.version_number + 1,
+                    None => 1,
+                };
+
+                // Create version record
+                let version_model = post_versions::ActiveModel {
+                    post_id: Set(*id),
+                    title: Set(old_model.title.clone()),
+                    content: Set(old_model.content.clone()),
+                    category: Set(old_model.category.clone()),
+                    version_number: Set(next_version),
+                    created_by: Set(user_id),
+                    change_note: Set(change_note),
+                    ..Default::default()
+                };
+                version_model.insert(self.db.as_ref()).await?;
+            }
+
+            let mut active_model: posts::ActiveModel = old_model.into();
             active_model.title = Set(post.title);
             active_model.content = Set(post.content);
             active_model.category = Set(post.category);
@@ -126,5 +156,186 @@ impl PostRepository for PostgresPostRepository {
     async fn hard_delete(&self, id: &i64) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         let result = posts::Entity::delete_by_id(*id).exec(self.db.as_ref()).await?;
         Ok(result.rows_affected > 0)
+    }
+
+    // Version management
+    async fn get_versions(&self, post_id: &i64) -> Result<Vec<PostVersion>, Box<dyn std::error::Error + Send + Sync>> {
+        let models = post_versions::Entity::find()
+            .filter(post_versions::Column::PostId.eq(*post_id))
+            .order_by_desc(post_versions::Column::VersionNumber)
+            .all(self.db.as_ref())
+            .await?;
+
+        Ok(models.into_iter().map(PostVersion::from).collect())
+    }
+
+    async fn get_version(&self, version_id: &i64) -> Result<Option<PostVersion>, Box<dyn std::error::Error + Send + Sync>> {
+        let model = post_versions::Entity::find_by_id(*version_id).one(self.db.as_ref()).await?;
+        Ok(model.map(PostVersion::from))
+    }
+
+    async fn restore_from_version(
+        &self,
+        post_id: &i64,
+        version_id: &i64,
+        user_id: i64,
+    ) -> Result<Option<Post>, Box<dyn std::error::Error + Send + Sync>> {
+        let version = post_versions::Entity::find_by_id(*version_id)
+            .one(self.db.as_ref())
+            .await?;
+
+        if let Some(version_model) = version {
+            if version_model.post_id != *post_id {
+                return Err("Version does not belong to this post".into());
+            }
+
+            // Get current post
+            let post = posts::Entity::find_by_id(*post_id).one(self.db.as_ref()).await?;
+            if let Some(post_model) = post {
+                // Create a version of current state before restoring
+                let max_version = post_versions::Entity::find()
+                    .filter(post_versions::Column::PostId.eq(*post_id))
+                    .order_by_desc(post_versions::Column::VersionNumber)
+                    .one(self.db.as_ref())
+                    .await?;
+                
+                let next_version = match max_version {
+                    Some(v) => v.version_number + 1,
+                    None => 1,
+                };
+
+                let backup_version = post_versions::ActiveModel {
+                    post_id: Set(*post_id),
+                    title: Set(post_model.title.clone()),
+                    content: Set(post_model.content.clone()),
+                    category: Set(post_model.category.clone()),
+                    version_number: Set(next_version),
+                    created_by: Set(user_id),
+                    change_note: Set(Some("Auto-created before restore".to_string())),
+                    ..Default::default()
+                };
+                backup_version.insert(self.db.as_ref()).await?;
+
+                // Restore from version
+                let mut active_model: posts::ActiveModel = post_model.into();
+                active_model.title = Set(version_model.title.clone());
+                active_model.content = Set(version_model.content.clone());
+                active_model.category = Set(version_model.category.clone());
+
+                let updated = active_model.update(self.db.as_ref()).await?;
+                Ok(Some(Post::from(updated)))
+            } else {
+                Ok(None)
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
+    // Draft management
+    async fn save_draft(
+        &self,
+        author_id: i64,
+        request: SaveDraftRequest,
+    ) -> Result<PostDraft, Box<dyn std::error::Error + Send + Sync>> {
+        // Check if draft already exists
+        let existing_draft = if let Some(post_id) = request.post_id {
+            post_drafts::Entity::find()
+                .filter(post_drafts::Column::PostId.eq(post_id))
+                .filter(post_drafts::Column::AuthorId.eq(author_id))
+                .one(self.db.as_ref())
+                .await?
+        } else {
+            post_drafts::Entity::find()
+                .filter(post_drafts::Column::PostId.is_null())
+                .filter(post_drafts::Column::AuthorId.eq(author_id))
+                .one(self.db.as_ref())
+                .await?
+        };
+
+        if let Some(existing) = existing_draft {
+            // Update existing draft
+            let mut active_model: post_drafts::ActiveModel = existing.into();
+            active_model.title = Set(request.title);
+            active_model.content = Set(request.content);
+            active_model.category = Set(request.category);
+            // updated_at is automatically updated by trigger
+            let updated = active_model.update(self.db.as_ref()).await?;
+            Ok(PostDraft::from(updated))
+        } else {
+            // Create new draft
+            let active_model = post_drafts::ActiveModel {
+                post_id: Set(request.post_id),
+                title: Set(request.title),
+                content: Set(request.content),
+                category: Set(request.category),
+                author_id: Set(author_id),
+                ..Default::default()
+            };
+            let model = active_model.insert(self.db.as_ref()).await?;
+            Ok(PostDraft::from(model))
+        }
+    }
+
+    async fn get_draft(
+        &self,
+        post_id: Option<i64>,
+        author_id: i64,
+    ) -> Result<Option<PostDraft>, Box<dyn std::error::Error + Send + Sync>> {
+        let model = if let Some(pid) = post_id {
+            post_drafts::Entity::find()
+                .filter(post_drafts::Column::PostId.eq(pid))
+                .filter(post_drafts::Column::AuthorId.eq(author_id))
+                .one(self.db.as_ref())
+                .await?
+        } else {
+            post_drafts::Entity::find()
+                .filter(post_drafts::Column::PostId.is_null())
+                .filter(post_drafts::Column::AuthorId.eq(author_id))
+                .one(self.db.as_ref())
+                .await?
+        };
+
+        Ok(model.map(PostDraft::from))
+    }
+
+    async fn delete_draft(
+        &self,
+        post_id: Option<i64>,
+        author_id: i64,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        let model = if let Some(pid) = post_id {
+            post_drafts::Entity::find()
+                .filter(post_drafts::Column::PostId.eq(pid))
+                .filter(post_drafts::Column::AuthorId.eq(author_id))
+                .one(self.db.as_ref())
+                .await?
+        } else {
+            post_drafts::Entity::find()
+                .filter(post_drafts::Column::PostId.is_null())
+                .filter(post_drafts::Column::AuthorId.eq(author_id))
+                .one(self.db.as_ref())
+                .await?
+        };
+
+        if let Some(draft) = model {
+            post_drafts::Entity::delete_by_id(draft.id).exec(self.db.as_ref()).await?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    async fn get_all_drafts(
+        &self,
+        author_id: i64,
+    ) -> Result<Vec<PostDraft>, Box<dyn std::error::Error + Send + Sync>> {
+        let models = post_drafts::Entity::find()
+            .filter(post_drafts::Column::AuthorId.eq(author_id))
+            .order_by_desc(post_drafts::Column::UpdatedAt)
+            .all(self.db.as_ref())
+            .await?;
+
+        Ok(models.into_iter().map(PostDraft::from).collect())
     }
 }

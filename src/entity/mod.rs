@@ -2,5 +2,7 @@
 
 pub mod prelude;
 
+pub mod post_drafts;
+pub mod post_versions;
 pub mod posts;
 pub mod users;

@@ -1,28 +1,143 @@
-import { useState, useRef } from 'react';
-import { Save, Eye, EyeOff, X, Loader2, Image as ImageIcon } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Save, Eye, EyeOff, X, Loader2, Image as ImageIcon, Cloud } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import rehypeHighlight from 'rehype-highlight';
-import { api } from '../../services/api';
+import { api, isAuthenticated } from '../../services/api';
 import { normalizeImageUrl } from '../../utils/url';
+import type { PostResponse } from '../../types';
 import 'highlight.js/styles/github.css';
 
 interface CreatePostProps {
+  postId?: string;
+  initialPost?: PostResponse;
   onSuccess?: () => void;
   onCancel?: () => void;
 }
 
-export function CreatePost({ onSuccess, onCancel }: CreatePostProps) {
-  const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('');
-  const [content, setContent] = useState('');
+export function CreatePost({ postId, initialPost, onSuccess, onCancel }: CreatePostProps) {
+  const isEditMode = !!postId;
+  const [title, setTitle] = useState(initialPost?.title || '');
+  const [category, setCategory] = useState(initialPost?.category || '');
+  const [content, setContent] = useState(initialPost?.content || '');
   const [showPreview, setShowPreview] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(false);
+  const [lastSavedContent, setLastSavedContent] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const saveDraftTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastContentRef = useRef(content);
+  const charCountSinceLastSaveRef = useRef(0);
+
+  // Load draft on mount
+  useEffect(() => {
+    const loadDraft = async () => {
+      if (!isAuthenticated()) return;
+      
+      try {
+        const draft = await api.getDraft(postId || undefined);
+        if (draft && (!initialPost || new Date(draft.updated_at) > new Date(initialPost.updated_at))) {
+          setTitle(draft.title);
+          setCategory(draft.category);
+          setContent(draft.content);
+          const draftContent = draft.title + draft.category + draft.content;
+          setLastSavedContent(draftContent);
+          lastContentRef.current = draftContent;
+        } else if (initialPost) {
+          // Initialize with post content
+          const postContent = initialPost.title + initialPost.category + initialPost.content;
+          setLastSavedContent(postContent);
+          lastContentRef.current = postContent;
+        }
+      } catch (err) {
+        // Draft not found or error, ignore
+        if (initialPost) {
+          // Initialize with post content
+          const postContent = initialPost.title + initialPost.category + initialPost.content;
+          setLastSavedContent(postContent);
+          lastContentRef.current = postContent;
+        }
+      }
+    };
+
+    loadDraft();
+  }, [postId, initialPost]);
+
+  // Auto-save draft
+  const saveDraft = useCallback(async () => {
+    if (!isAuthenticated()) return;
+    if (!title.trim() && !content.trim()) return; // Don't save empty drafts
+    
+    const currentContent = title + category + content;
+    if (currentContent === lastSavedContent) return; // No changes
+
+    try {
+      setSavingDraft(true);
+      await api.saveDraft({
+        post_id: postId ? parseInt(postId, 10) : null,
+        title: title.trim() || 'Untitled',
+        category: category.trim() || 'Uncategorized',
+        content: content.trim() || '',
+      });
+      setLastSavedContent(currentContent);
+      charCountSinceLastSaveRef.current = 0;
+      setDraftSaved(true);
+      setTimeout(() => setDraftSaved(false), 2000);
+    } catch (err) {
+      console.error('Failed to save draft:', err);
+    } finally {
+      setSavingDraft(false);
+    }
+  }, [title, category, content, postId, lastSavedContent]);
+
+  // Auto-save logic: every 30 seconds or after 50 characters
+  useEffect(() => {
+    const currentContent = title + category + content;
+    const charDiff = Math.abs(currentContent.length - lastContentRef.current.length);
+    
+    // Update character count
+    if (charDiff > 0) {
+      charCountSinceLastSaveRef.current += charDiff;
+      
+      // Save if 50+ characters changed
+      if (charCountSinceLastSaveRef.current >= 50) {
+        saveDraft();
+        charCountSinceLastSaveRef.current = 0; // Reset counter after save
+      }
+    }
+    
+    lastContentRef.current = currentContent;
+
+    // Clear existing timeout
+    if (saveDraftTimeoutRef.current) {
+      clearTimeout(saveDraftTimeoutRef.current);
+    }
+
+    // Set timeout for 30 seconds
+    saveDraftTimeoutRef.current = setTimeout(() => {
+      saveDraft();
+    }, 30000);
+
+    return () => {
+      if (saveDraftTimeoutRef.current) {
+        clearTimeout(saveDraftTimeoutRef.current);
+      }
+    };
+  }, [title, category, content, saveDraft]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (saveDraftTimeoutRef.current) {
+        clearTimeout(saveDraftTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,28 +151,52 @@ export function CreatePost({ onSuccess, onCancel }: CreatePostProps) {
     setError('');
 
     try {
-      // Get user ID from JWT token
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        setError('Not authenticated. Please login first.');
-        return;
-      }
+      if (isEditMode && postId) {
+        // Update existing post - always create version before update
+        await api.updatePost(postId, {
+          title: title.trim(),
+          category: category.trim(),
+          content: content.trim(),
+          create_version: true, // Always create version when editing
+          change_note: undefined, // Can be enhanced later to allow user to add change notes
+        });
+        
+        // Delete draft after successful update
+        try {
+          await api.deleteDraft(postId);
+        } catch (err) {
+          // Ignore draft deletion errors
+        }
+      } else {
+        // Create new post
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          setError('Not authenticated. Please login first.');
+          return;
+        }
 
-      // Parse JWT token to get user ID
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      const authorId = parseInt(payload.sub, 10);
-      
-      if (!authorId) {
-        setError('Failed to get user information from token.');
-        return;
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const authorId = parseInt(payload.sub, 10);
+        
+        if (!authorId) {
+          setError('Failed to get user information from token.');
+          return;
+        }
+        
+        await api.createPost({
+          title: title.trim(),
+          category: category.trim(),
+          content: content.trim(),
+          author_id: authorId,
+        });
+
+        // Delete draft after successful creation
+        try {
+          await api.deleteDraft();
+        } catch (err) {
+          // Ignore draft deletion errors
+        }
       }
-      
-      await api.createPost({
-        title: title.trim(),
-        category: category.trim(),
-        content: content.trim(),
-        author_id: authorId,
-      });
 
       // Reset form
       setTitle('');
@@ -68,7 +207,7 @@ export function CreatePost({ onSuccess, onCancel }: CreatePostProps) {
       // Call success callback
       onSuccess?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create post');
+      setError(err instanceof Error ? err.message : `Failed to ${isEditMode ? 'update' : 'create'} post`);
     } finally {
       setLoading(false);
     }
@@ -226,7 +365,23 @@ export function CreatePost({ onSuccess, onCancel }: CreatePostProps) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-8">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-slate-900">Create New Post</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-bold text-slate-900">
+            {isEditMode ? 'Edit Post' : 'Create New Post'}
+          </h2>
+          {savingDraft && (
+            <span className="inline-flex items-center gap-1 text-sm text-slate-500">
+              <Loader2 className="animate-spin" size={14} />
+              Saving draft...
+            </span>
+          )}
+          {draftSaved && !savingDraft && (
+            <span className="inline-flex items-center gap-1 text-sm text-green-600">
+              <Cloud size={14} />
+              Draft saved
+            </span>
+          )}
+        </div>
         {onCancel && (
           <button
             onClick={onCancel}
@@ -405,12 +560,12 @@ export function CreatePost({ onSuccess, onCancel }: CreatePostProps) {
             {loading ? (
               <>
                 <Loader2 className="animate-spin" size={18} />
-                Publishing...
+                {isEditMode ? 'Updating...' : 'Publishing...'}
               </>
             ) : (
               <>
                 <Save size={18} />
-                Publish Post
+                {isEditMode ? 'Update Post' : 'Publish Post'}
               </>
             )}
           </button>

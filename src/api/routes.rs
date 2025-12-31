@@ -44,6 +44,13 @@ pub fn create_router<
                 .put(update_post::<PR, UR, SB>)
                 .delete(delete_post::<PR, UR, SB>),
         )
+        // Post version management
+        .route("/api/posts/:id/versions", get(get_post_versions::<PR, UR, SB>))
+        .route("/api/posts/:post_id/versions/:version_id", get(get_post_version::<PR, UR, SB>))
+        .route("/api/posts/:post_id/versions/:version_id/restore", post(restore_post_from_version::<PR, UR, SB>))
+        // Draft management
+        .route("/api/drafts", post(save_draft::<PR, UR, SB>).get(get_draft::<PR, UR, SB>).delete(delete_draft::<PR, UR, SB>))
+        .route("/api/drafts/all", get(get_all_drafts::<PR, UR, SB>))
         
         // Users RESTful API
         // GET    /api/users      - Get all users

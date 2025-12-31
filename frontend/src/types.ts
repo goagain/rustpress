@@ -61,6 +61,44 @@ export interface CreatePostRequest {
   author_id: number;
 }
 
+export interface PostVersionResponse {
+  id: string;
+  post_id: string;
+  title: string;
+  content: string;
+  category: string;
+  version_number: number;
+  created_at: string;
+  created_by: number;
+  change_note: string | null;
+}
+
+export interface PostDraftResponse {
+  id: string;
+  post_id: string | null;
+  title: string;
+  content: string;
+  category: string;
+  author_id: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SaveDraftRequest {
+  post_id?: number | null;
+  title: string;
+  content: string;
+  category: string;
+}
+
+export interface UpdatePostRequest {
+  title?: string;
+  content?: string;
+  category?: string;
+  create_version?: boolean;
+  change_note?: string;
+}
+
 declare global {
   interface Window {
     __INITIAL_DATA__?: PageData;

@@ -1,4 +1,13 @@
-import type { PostResponse, LoginRequest, LoginResponse, User } from '../types';
+import type { 
+  PostResponse, 
+  LoginRequest, 
+  LoginResponse, 
+  User,
+  PostVersionResponse,
+  PostDraftResponse,
+  SaveDraftRequest,
+  UpdatePostRequest,
+} from '../types';
 
 const API_BASE_URL = '/api';
 
@@ -200,6 +209,125 @@ export const api = {
     }
 
     return response.json();
+  },
+
+  // Post version management
+  async getPostVersions(postId: string): Promise<PostVersionResponse[]> {
+    const response = await fetch(`${API_BASE_URL}/posts/${postId}/versions`);
+    if (!response.ok) {
+      throw new Error('Failed to get post versions');
+    }
+    const data = await response.json();
+    return data.map((v: any) => ({
+      ...v,
+      id: String(v.id),
+      post_id: String(v.post_id),
+    }));
+  },
+
+  async getPostVersion(postId: string, versionId: string): Promise<PostVersionResponse> {
+    const response = await fetch(`${API_BASE_URL}/posts/${postId}/versions/${versionId}`);
+    if (!response.ok) {
+      throw new Error('Failed to get post version');
+    }
+    const data = await response.json();
+    return {
+      ...data,
+      id: String(data.id),
+      post_id: String(data.post_id),
+    };
+  },
+
+  async restorePostFromVersion(postId: string, versionId: string): Promise<PostResponse> {
+    const response = await authenticatedFetch(`${API_BASE_URL}/posts/${postId}/versions/${versionId}/restore`, {
+      method: 'POST',
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to restore post from version');
+    }
+
+    const data = await response.json();
+    return {
+      ...data,
+      id: String(data.id),
+    };
+  },
+
+  // Post update
+  async updatePost(postId: string, post: UpdatePostRequest): Promise<PostResponse> {
+    const response = await authenticatedFetch(`${API_BASE_URL}/posts/${postId}`, {
+      method: 'PUT',
+      body: JSON.stringify(post),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to update post');
+    }
+
+    const data = await response.json();
+    return {
+      ...data,
+      id: String(data.id),
+    };
+  },
+
+  // Draft management
+  async saveDraft(draft: SaveDraftRequest): Promise<PostDraftResponse> {
+    const response = await authenticatedFetch(`${API_BASE_URL}/drafts`, {
+      method: 'POST',
+      body: JSON.stringify(draft),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to save draft');
+    }
+
+    const data = await response.json();
+    return {
+      ...data,
+      id: String(data.id),
+      post_id: data.post_id ? String(data.post_id) : null,
+    };
+  },
+
+  async getDraft(postId?: string): Promise<PostDraftResponse | null> {
+    const url = postId 
+      ? `${API_BASE_URL}/drafts?post_id=${postId}`
+      : `${API_BASE_URL}/drafts`;
+    
+    const response = await authenticatedFetch(url);
+    
+    if (response.status === 404) {
+      return null;
+    }
+
+    if (!response.ok) {
+      throw new Error('Failed to get draft');
+    }
+
+    const data = await response.json();
+    return {
+      ...data,
+      id: String(data.id),
+      post_id: data.post_id ? String(data.post_id) : null,
+    };
+  },
+
+  async deleteDraft(postId?: string): Promise<void> {
+    const url = postId 
+      ? `${API_BASE_URL}/drafts?post_id=${postId}`
+      : `${API_BASE_URL}/drafts`;
+    
+    const response = await authenticatedFetch(url, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok && response.status !== 404) {
+      throw new Error('Failed to delete draft');
+    }
   },
 };
 
