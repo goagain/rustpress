@@ -5,10 +5,9 @@ use crate::dto::{
     PostVersionResponse, PostDraftResponse, SaveDraftRequest,
 };
 use crate::repository::{PostRepository, UserRepository};
-use crate::auth::jwt::JwtUtil;
 use axum::{
-    extract::{Path, State},
-    http::{StatusCode, HeaderMap},
+    extract::{Path, State, Extension},
+    http::StatusCode,
     response::Json,
 };
 use std::sync::Arc;
@@ -111,8 +110,10 @@ pub async fn get_post<PR: PostRepository, UR: UserRepository, SB: crate::storage
 )]
 pub async fn create_post<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
     State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
+    Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
     axum::Json(payload): axum::Json<CreatePostRequest>,
 ) -> Result<(axum::http::StatusCode, Json<PostResponse>), StatusCode> {
+    // User must be authenticated (already checked by middleware)
     match state.app_state.post_repository.create(payload).await {
         Ok(post) => Ok((StatusCode::CREATED, Json(PostResponse::from(post)))),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -140,7 +141,7 @@ pub async fn create_post<PR: PostRepository, UR: UserRepository, SB: crate::stor
 pub async fn update_post<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
     Path(id): Path<String>,
     State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
-    headers: HeaderMap,
+    Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
     axum::Json(payload): axum::Json<UpdatePostRequest>,
 ) -> Result<Json<PostResponse>, StatusCode> {
     let id_num: i64 = match id.parse() {
@@ -155,13 +156,13 @@ pub async fn update_post<PR: PostRepository, UR: UserRepository, SB: crate::stor
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
 
-    // Extract user_id from JWT token for version creation
-    let user_id = headers.get("authorization")
-        .and_then(|h| h.to_str().ok())
-        .and_then(|s| s.strip_prefix("Bearer "))
-        .and_then(|token| JwtUtil::verify_token(token).ok())
-        .map(|claims| claims.sub)
-        .unwrap_or(existing_post.author_id); // Fallback to author_id if token extraction fails
+    // Check if user is author or admin
+    if !current_user.is_author_or_admin(existing_post.author_id) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // Use current user ID from context
+    let user_id = current_user.id;
 
     // Build updated post
     let updated_post = Post {
@@ -209,11 +210,24 @@ pub async fn update_post<PR: PostRepository, UR: UserRepository, SB: crate::stor
 pub async fn delete_post<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
     Path(id): Path<String>,
     State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
+    Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
 ) -> Result<StatusCode, StatusCode> {
     let id_num: i64 = match id.parse() {
         Ok(num) => num,
         Err(_) => return Err(StatusCode::BAD_REQUEST),
     };
+    
+    // Get existing post to check ownership
+    let existing_post = match state.app_state.post_repository.find_by_id(&id_num).await {
+        Ok(Some(post)) => post,
+        Ok(None) => return Err(StatusCode::NOT_FOUND),
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+
+    // Check if user is author or admin
+    if !current_user.is_author_or_admin(existing_post.author_id) {
+        return Err(StatusCode::FORBIDDEN);
+    }
     
     match state.app_state.post_repository.delete(&id_num).await {
         Ok(true) => Ok(StatusCode::NO_CONTENT),
@@ -443,6 +457,7 @@ pub async fn get_post_version<PR: PostRepository, UR: UserRepository, SB: crate:
 pub async fn restore_post_from_version<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
     Path((post_id, version_id)): Path<(String, String)>,
     State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
+    Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
 ) -> Result<Json<PostResponse>, StatusCode> {
     let post_id_num: i64 = match post_id.parse() {
         Ok(num) => num,
@@ -453,14 +468,19 @@ pub async fn restore_post_from_version<PR: PostRepository, UR: UserRepository, S
         Err(_) => return Err(StatusCode::BAD_REQUEST),
     };
     
-    // Get post to get author_id for user_id
+    // Get post to check ownership
     let post = match state.app_state.post_repository.find_by_id(&post_id_num).await {
         Ok(Some(p)) => p,
         Ok(None) => return Err(StatusCode::NOT_FOUND),
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
+
+    // Check if user is author or admin
+    if !current_user.is_author_or_admin(post.author_id) {
+        return Err(StatusCode::FORBIDDEN);
+    }
     
-    match state.app_state.post_repository.restore_from_version(&post_id_num, &version_id_num, post.author_id).await {
+    match state.app_state.post_repository.restore_from_version(&post_id_num, &version_id_num, current_user.id).await {
         Ok(Some(restored_post)) => Ok(Json(PostResponse::from(restored_post))),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -483,12 +503,19 @@ pub async fn restore_post_from_version<PR: PostRepository, UR: UserRepository, S
 )]
 pub async fn save_draft<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
     State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
+    Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
     axum::Json(payload): axum::Json<SaveDraftRequest>,
 ) -> Result<Json<PostDraftResponse>, StatusCode> {
-    // Get author_id from JWT token (for now, we'll need to extract from headers)
-    // For simplicity, we'll require author_id in the request for now
-    // TODO: Extract from JWT token
-    return Err(StatusCode::NOT_IMPLEMENTED);
+    // Use current user ID from context
+    let author_id = current_user.id;
+    
+    match state.app_state.post_repository.save_draft(
+        author_id,
+        payload,
+    ).await {
+        Ok(draft) => Ok(Json(PostDraftResponse::from(draft))),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
 }
 
 /// Get a draft (for editing a post or creating a new one)
@@ -508,11 +535,20 @@ pub async fn save_draft<PR: PostRepository, UR: UserRepository, SB: crate::stora
 )]
 pub async fn get_draft<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
     State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
+    Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<PostDraftResponse>, StatusCode> {
-    // Get author_id from JWT token
-    // TODO: Extract from JWT token
-    return Err(StatusCode::NOT_IMPLEMENTED);
+    // Use current user ID from context
+    let author_id = current_user.id;
+    
+    let post_id = params.get("post_id")
+        .and_then(|s| s.parse::<i64>().ok());
+    
+    match state.app_state.post_repository.get_draft(post_id, author_id).await {
+        Ok(Some(draft)) => Ok(Json(PostDraftResponse::from(draft))),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
 }
 
 /// Get all drafts for the current user
@@ -527,10 +563,15 @@ pub async fn get_draft<PR: PostRepository, UR: UserRepository, SB: crate::storag
 )]
 pub async fn get_all_drafts<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
     State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
+    Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
 ) -> Result<Json<Vec<PostDraftResponse>>, StatusCode> {
-    // Get author_id from JWT token
-    // TODO: Extract from JWT token
-    return Err(StatusCode::NOT_IMPLEMENTED);
+    // Use current user ID from context
+    let author_id = current_user.id;
+    
+    match state.app_state.post_repository.get_all_drafts(author_id).await {
+        Ok(drafts) => Ok(Json(drafts.into_iter().map(PostDraftResponse::from).collect())),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
 }
 
 /// Delete a draft
@@ -550,11 +591,19 @@ pub async fn get_all_drafts<PR: PostRepository, UR: UserRepository, SB: crate::s
 )]
 pub async fn delete_draft<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
     State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
+    Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Result<StatusCode, StatusCode> {
-    // Get author_id from JWT token
-    // TODO: Extract from JWT token
-    return Err(StatusCode::NOT_IMPLEMENTED);
+    // Use current user ID from context
+    let author_id = current_user.id;
+    
+    let post_id = params.get("post_id")
+        .and_then(|s| s.parse::<i64>().ok());
+    
+    match state.app_state.post_repository.delete_draft(post_id, author_id).await {
+        Ok(_) => Ok(StatusCode::NO_CONTENT),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
 }
 
 // Documentation wrapper functions

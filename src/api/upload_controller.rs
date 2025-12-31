@@ -4,7 +4,7 @@
 
 use crate::storage::StorageBackend;
 use axum::{
-    extract::{Multipart, State},
+    extract::{Extension, Multipart, State},
     http::StatusCode,
     response::Json,
 };
@@ -24,6 +24,7 @@ pub struct UploadResponse {
 /// Returns the URL where the uploaded image can be accessed
 pub async fn upload_image<PR, UR, SB>(
     State(state): State<Arc<crate::api::post_controller::ExtendedAppState<PR, UR, SB>>>,
+    Extension(_current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
     mut multipart: Multipart,
 ) -> Result<Json<UploadResponse>, StatusCode>
 where

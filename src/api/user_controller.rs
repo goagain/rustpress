@@ -6,7 +6,7 @@ use crate::dto::{
 use crate::repository::{PostRepository, UserRepository};
 use crate::repository::postgres_user_repository::verify_password;
 use axum::{
-    extract::{Path, State},
+    extract::{Extension, Path, State},
     http::StatusCode,
     response::Json,
 };
@@ -77,8 +77,14 @@ pub async fn get_user<PR: PostRepository, UR: UserRepository, SB: crate::storage
 )]
 pub async fn create_user<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
     State(state): State<Arc<crate::api::post_controller::ExtendedAppState<PR, UR, SB>>>,
+    Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
     axum::Json(payload): axum::Json<CreateUserRequest>,
 ) -> Result<(axum::http::StatusCode, Json<UserResponse>), StatusCode> {
+    // Only admin or root can create users
+    if !current_user.is_admin() {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
     // Check if username already exists
     if let Ok(Some(_)) = state.app_state.user_repository.find_by_username(&payload.username).await {
         return Err(StatusCode::CONFLICT);
@@ -115,6 +121,7 @@ pub async fn create_user<PR: PostRepository, UR: UserRepository, SB: crate::stor
 pub async fn update_user<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
     Path(id): Path<i64>,
     State(state): State<Arc<crate::api::post_controller::ExtendedAppState<PR, UR, SB>>>,
+    Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
     axum::Json(payload): axum::Json<CreateUserRequest>,
 ) -> Result<Json<UserResponse>, StatusCode> {
     // Get existing user
@@ -123,6 +130,16 @@ pub async fn update_user<PR: PostRepository, UR: UserRepository, SB: crate::stor
         Ok(None) => return Err(StatusCode::NOT_FOUND),
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
+
+    // Check permissions: user can update themselves, or admin/root can update anyone
+    if current_user.id != id && !current_user.is_admin() {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // Only admin/root can change roles
+    if payload.role != existing_user.role && !current_user.is_admin() {
+        return Err(StatusCode::FORBIDDEN);
+    }
 
     // Build updated user
     let updated_user = User {
@@ -162,7 +179,18 @@ pub async fn update_user<PR: PostRepository, UR: UserRepository, SB: crate::stor
 pub async fn delete_user<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
     Path(id): Path<i64>,
     State(state): State<Arc<crate::api::post_controller::ExtendedAppState<PR, UR, SB>>>,
+    Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
 ) -> Result<StatusCode, StatusCode> {
+    // Only admin or root can delete users
+    if !current_user.is_admin() {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // Prevent deleting yourself
+    if current_user.id == id {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
     match state.app_state.user_repository.delete(&id).await {
         Ok(true) => Ok(StatusCode::NO_CONTENT),
         Ok(false) => Err(StatusCode::NOT_FOUND),

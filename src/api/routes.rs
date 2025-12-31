@@ -2,10 +2,12 @@ use crate::api::post_controller::{ApiDoc, *};
 use crate::api::upload_controller::*;
 use crate::api::user_controller::*;
 use crate::api::page_controller::serve_spa;
+use crate::auth::middleware::{auth_middleware, optional_auth_middleware};
 use crate::repository::{PostRepository, UserRepository};
 use crate::storage::StorageBackend;
 #[allow(unused_imports)] // post, put, delete, patch are used via method chaining
 use axum::{
+    middleware,
     routing::{get, post, put, delete, patch},
     Router,
 };
@@ -28,21 +30,32 @@ pub fn create_router<
 ) -> Router {
     // Create extended state that includes storage
     let state = Arc::new(ExtendedAppState::new(app_state, storage));
-    Router::new()
+    
+    // Public routes (no authentication required)
+    let public_routes = Router::new()
         // Health check
         .route("/api/health", get(health_check))
         
-        // Posts RESTful API
-        // GET    /api/posts      - Get all posts
+        // Auth API (not RESTful, but follows common practices)
+        // POST /api/auth/login   - User login
+        // POST /api/auth/refresh - Refresh access token
+        .route("/api/auth/login", post(login::<PR, UR, SB>))
+        .route("/api/auth/refresh", post(refresh_token::<PR, UR, SB>))
+        
+        // Public posts endpoints
+        .route("/api/posts", get(get_posts::<PR, UR, SB>))
+        .route("/api/posts/:id", get(get_post::<PR, UR, SB>));
+    
+    // Protected routes (authentication required)
+    let protected_routes = Router::new()
+        // Posts RESTful API (protected)
         // POST   /api/posts      - Create new post
-        // GET    /api/posts/:id  - Get single post
         // PUT    /api/posts/:id  - Full update post
         // DELETE /api/posts/:id  - Delete post
-        .route("/api/posts", get(get_posts::<PR, UR, SB>).post(create_post::<PR, UR, SB>))
+        .route("/api/posts", post(create_post::<PR, UR, SB>))
         .route(
             "/api/posts/:id",
-            get(get_post::<PR, UR, SB>)
-                .put(update_post::<PR, UR, SB>)
+            put(update_post::<PR, UR, SB>)
                 .delete(delete_post::<PR, UR, SB>),
         )
         // Post version management
@@ -67,15 +80,14 @@ pub fn create_router<
                 .delete(delete_user::<PR, UR, SB>),
         )
         
-        // Auth API (not RESTful, but follows common practices)
-        // POST /api/auth/login   - User login
-        // POST /api/auth/refresh - Refresh access token
-        .route("/api/auth/login", post(login::<PR, UR, SB>))
-        .route("/api/auth/refresh", post(refresh_token::<PR, UR, SB>))
-        
         // Upload API
         // POST /api/upload/image - Upload image
         .route("/api/upload/image", post(upload_image::<PR, UR, SB>))
+        .layer(middleware::from_fn(auth_middleware));
+    
+    Router::new()
+        .merge(public_routes)
+        .merge(protected_routes)
         
         // Serve uploaded files
         // GET /uploads/* - Serve uploaded files
@@ -104,7 +116,7 @@ pub fn create_router<
                     axum::http::Method::PATCH,
                     axum::http::Method::DELETE,
                 ])
-                .allow_headers([axum::http::header::CONTENT_TYPE]),
+                .allow_headers([axum::http::header::CONTENT_TYPE, axum::http::header::AUTHORIZATION]),
         )
         .layer(TraceLayer::new_for_http())
         .with_state(state)
