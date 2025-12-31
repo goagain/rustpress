@@ -18,7 +18,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Build Rust backend
-FROM rust:1.75-alpine AS rust-builder
+FROM rust:1.92-alpine AS rust-builder
 
 # Install build dependencies
 RUN apk add --no-cache musl-dev pkgconfig openssl-dev openssl-libs-static
