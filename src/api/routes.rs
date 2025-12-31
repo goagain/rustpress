@@ -1,6 +1,7 @@
 use crate::api::post_controller::{ApiDoc, *};
 use crate::api::upload_controller::*;
 use crate::api::user_controller::*;
+use crate::api::page_controller::serve_spa;
 use crate::repository::{PostRepository, UserRepository};
 use crate::storage::StorageBackend;
 #[allow(unused_imports)] // post, put, delete, patch are used via method chaining
@@ -85,6 +86,14 @@ pub fn create_router<
             SwaggerUi::new("/swagger-ui")
                 .url("/api-doc/openapi.json", ApiDoc::openapi()),
         )
+        
+        // Serve frontend static files
+        .nest_service("/assets", ServeDir::new("frontend/dist/assets"))
+        .nest_service("/", ServeDir::new("frontend/dist"))
+        
+        // SPA fallback - serve index.html for all non-API routes
+        // This must be last so API routes take precedence
+        .fallback(serve_spa)
         .layer(
             CorsLayer::new()
                 .allow_origin(AllowOrigin::any())
