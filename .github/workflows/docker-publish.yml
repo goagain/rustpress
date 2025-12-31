@@ -25,11 +25,11 @@ jobs:
       - name: Set environment variables
         id: env
         run: |
-          REGISTRY="${{ secrets.DOCKER_REGISTRY }}"
+          REGISTRY="${{ vars.DOCKER_REGISTRY }}"
           if [ -z "$REGISTRY" ]; then
             REGISTRY="ghcr.io"
           fi
-          REPOSITORY="${{ secrets.DOCKER_REPOSITORY }}"
+          REPOSITORY="${{ vars.DOCKER_REPOSITORY }}"
           if [ -z "$REPOSITORY" ]; then
             REPOSITORY="${{ github.repository }}"
           fi
