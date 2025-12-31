@@ -1,9 +1,11 @@
 [package]
 name = "rustpress"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
+rustpress-migration = { path = "rustpress-migration" }
+sea-orm-migration = { version = "0.12", features = ["runtime-tokio-native-tls"] }
 axum = { version = "0.7", features = ["multipart"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -15,7 +17,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 sea-orm = { version = "0.12", features = ["runtime-tokio-native-tls", "sqlx-postgres", "macros", "chrono", "uuid"] }
-sea-orm-migration = { version = "0.12", features = ["runtime-tokio-native-tls"] }
 async-trait = "0.1"
 dotenv = "0.15"
 regex = "1.12.2"

@@ -28,6 +28,9 @@ WORKDIR /app
 # Copy Cargo files
 COPY Cargo.toml Cargo.lock ./
 
+# Copy migration crate
+COPY rustpress-migration ./rustpress-migration
+
 # Copy source code
 COPY src ./src
 

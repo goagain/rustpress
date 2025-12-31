@@ -2,7 +2,6 @@ mod api;
 mod auth;
 mod dto;
 mod entity;
-mod migration;
 mod repository;
 mod seed;
 mod storage;
@@ -122,7 +121,7 @@ async fn main() {
 /// Run SeaORM migrations
 async fn run_migrations(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr> {
     use sea_orm_migration::MigratorTrait;
-    migration::Migrator::up(db, None).await
+    rustpress_migration::Migrator::up(db, None).await
 }
 
 /// Initialize root user
