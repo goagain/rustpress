@@ -26,3 +26,4 @@ utoipa-swagger-ui = { version = "6.0", features = ["axum"] }
 jsonwebtoken = "9.2"
 bcrypt = "0.15"
 toml = "0.8"
+color-eyre = "0.6"

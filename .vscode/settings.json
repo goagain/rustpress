@@ -1,0 +1,39 @@
+{
+  // Rust settings
+  "rust-analyzer.checkOnSave.command": "clippy",
+  "rust-analyzer.inlayHints.typeHints.enable": true,
+  "rust-analyzer.inlayHints.parameterHints.enable": true,
+  "rust-analyzer.cargo.features": "all",
+  
+  // Files to exclude from search
+  "files.exclude": {
+    "**/target": true,
+    "**/node_modules": true,
+    "**/.git": true
+  },
+  
+  // Search exclude patterns
+  "search.exclude": {
+    "**/target": true,
+    "**/node_modules": true,
+    "**/Cargo.lock": true,
+    "**/package-lock.json": true
+  },
+  
+  // Editor settings
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer",
+    "editor.formatOnSave": true,
+    "editor.tabSize": 4
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true,
+    "editor.tabSize": 2
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true,
+    "editor.tabSize": 2
+  }
+}

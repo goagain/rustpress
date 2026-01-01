@@ -2,40 +2,125 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug Rust (LLDB)",
       "type": "lldb",
       "request": "launch",
-      "program": "${workspaceFolder}/target/debug/rustpress.exe",
+      "name": "Debug RustPress (Backend)",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=rustpress"
+        ],
+        "filter": {
+          "name": "rustpress",
+          "kind": "bin"
+        }
+      },
       "args": [],
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "stop and build",
-      "stopOnEntry": false,
       "env": {
-        "DATABASE_URL": "postgres://postgres:password@localhost:5432/rustpress"
-      }
+        "RUST_LOG": "debug"
+      },
+      "console": "integratedTerminal",
+      "sourceLanguages": ["rust"]
     },
     {
-      "name": "Launch Frontend (npm start)",
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug RustPress Migration",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=rustpress-migrate",
+          "--manifest-path=rustpress-migration/Cargo.toml"
+        ],
+        "filter": {
+          "name": "rustpress-migrate",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}/rustpress-migration",
+      "console": "integratedTerminal",
+      "sourceLanguages": ["rust"]
+    },
+    {
       "type": "node",
       "request": "launch",
-      "runtimeExecutable": "npm",
-      "args": ["run", "dev"],
+      "name": "Debug Frontend (Main)",
+      "runtimeExecutable": "node",
+      "program": "${workspaceFolder}/frontend/node_modules/vite/bin/vite.js",
       "cwd": "${workspaceFolder}/frontend",
-      "console": "integratedTerminal"
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "skipFiles": ["<node_internals>/**"],
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "preLaunchTask": "npm install (frontend)"
     },
     {
-      "name": "Attach to Frontend (Chrome)",
-      "type": "chrome",
+      "type": "node",
       "request": "launch",
-      "url": "http://localhost:3000",
-      "webRoot": "${workspaceFolder}/frontend",
-      "timeout": 30000
+      "name": "Debug Admin Frontend",
+      "runtimeExecutable": "node",
+      "program": "${workspaceFolder}/admin-frontend/node_modules/vite/bin/vite.js",
+      "cwd": "${workspaceFolder}/admin-frontend",
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "skipFiles": ["<node_internals>/**"],
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "preLaunchTask": "npm install (admin-frontend)"
+    },
+    {
+      "type": "lldb",
+      "request": "attach",
+      "name": "Attach to RustPress Process",
+      "pid": "${command:pickProcess}",
+      "sourceLanguages": ["rust"]
     }
   ],
   "compounds": [
     {
-      "name": "Debug Full Stack",
-      "configurations": ["Debug Rust (LLDB)", "Launch Frontend (npm start)"]
+      "name": "Debug Full Stack (Backend + Frontend)",
+      "configurations": [
+        "Debug RustPress (Backend)",
+        "Debug Frontend (Main)"
+      ],
+      "presentation": {
+        "hidden": false,
+        "group": "",
+        "order": 1
+      },
+      "stopAll": true
+    },
+    {
+      "name": "Debug Full Stack (Backend + Admin)",
+      "configurations": [
+        "Debug RustPress (Backend)",
+        "Debug Admin Frontend"
+      ],
+      "presentation": {
+        "hidden": false,
+        "group": "",
+        "order": 2
+      },
+      "stopAll": true
+    },
+    {
+      "name": "Debug Full Stack (Backend + Frontend + Admin)",
+      "configurations": [
+        "Debug RustPress (Backend)",
+        "Debug Frontend (Main)",
+        "Debug Admin Frontend"
+      ],
+      "presentation": {
+        "hidden": false,
+        "group": "",
+        "order": 3
+      },
+      "stopAll": true
     }
   ]
 }

@@ -6,7 +6,6 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use axum::extract::Extension;
 use std::sync::Arc;
 
 /// Current user context stored in request extensions
@@ -56,7 +55,8 @@ pub async fn auth_middleware(
     let current_user = CurrentUser::from(claims);
 
     // Store in request extensions
-    request.extensions_mut().insert(Extension(Arc::new(current_user)));
+    // In Axum 0.7+, we store the value directly, not wrapped in Extension
+    request.extensions_mut().insert(Arc::new(current_user));
 
     Ok(next.run(request).await)
 }
@@ -73,7 +73,8 @@ pub async fn optional_auth_middleware(
         if let Ok(claims) = JwtUtil::verify_token(&token) {
             if claims.token_type == "access" {
                 let current_user = CurrentUser::from(claims);
-                request.extensions_mut().insert(Extension(Arc::new(current_user)));
+                // In Axum 0.7+, we store the value directly, not wrapped in Extension
+                request.extensions_mut().insert(Arc::new(current_user));
             }
         }
     }
@@ -93,10 +94,11 @@ fn extract_token_from_headers(headers: &HeaderMap) -> Option<String> {
 /// Helper function to extract current user from Extension
 /// Returns None if user is not authenticated
 pub fn get_current_user(request: &Request) -> Option<Arc<CurrentUser>> {
+    // In Axum 0.7+, extensions store values directly
     request
         .extensions()
-        .get::<Extension<Arc<CurrentUser>>>()
-        .map(|ext| ext.0.clone())
+        .get::<Arc<CurrentUser>>()
+        .cloned()
 }
 
 /// Helper function to require authentication
@@ -118,4 +120,22 @@ impl CurrentUser {
     pub fn is_author_or_admin(&self, author_id: i64) -> bool {
         self.id == author_id || self.is_admin()
     }
+}
+
+/// Admin middleware
+/// Checks if the user is authenticated and has admin or root role
+/// This middleware must be used after auth_middleware
+pub async fn admin_middleware(
+    request: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    // Get current user from request extensions (set by auth_middleware)
+    let current_user = require_auth(&request)?;
+
+    // Check if user is admin or root
+    if !current_user.is_admin() {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    Ok(next.run(request).await)
 }

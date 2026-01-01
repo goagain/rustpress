@@ -7,12 +7,15 @@ mod seed;
 mod storage;
 
 use api::create_router;
-use repository::{PostgresPostRepository, PostgresUserRepository, PostRepository, UserRepository};
+use repository::{PostRepository, PostgresPostRepository, PostgresUserRepository, UserRepository};
 use sea_orm::{Database, DbErr};
 use std::sync::Arc;
 
 #[tokio::main]
 async fn main() {
+    // Initialize color-eyre for better error reporting with stack traces
+    color_eyre::install().expect("Failed to install color-eyre");
+
     // Load environment variables
     dotenv::dotenv().ok();
 
@@ -22,14 +25,14 @@ async fn main() {
     // Default is "info" if RUST_LOG is not set
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
-    
+
     tracing_subscriber::fmt()
-        .with_file(true)           // Show file path
-        .with_line_number(true)    // Show line number
-        .with_target(true)         // Show module path
-        .with_thread_ids(false)    // Hide thread IDs for cleaner output
-        .with_thread_names(false)  // Hide thread names for cleaner output
-        .with_env_filter(filter)   // Apply log level filter
+        .with_file(true) // Show file path
+        .with_line_number(true) // Show line number
+        .with_target(true) // Show module path
+        .with_thread_ids(false) // Hide thread IDs for cleaner output
+        .with_thread_names(false) // Hide thread names for cleaner output
+        .with_env_filter(filter) // Apply log level filter
         .init();
 
     // Get database URL
@@ -40,14 +43,14 @@ async fn main() {
     let db = Database::connect(&database_url)
         .await
         .expect("Failed to connect to PostgreSQL database");
-    
+
     tracing::info!("✅ Connected to PostgreSQL database");
 
     // Run SeaORM migrations
     run_migrations(&db)
         .await
         .expect("Failed to run database migrations");
-    
+
     tracing::info!("✅ Database migrations completed");
 
     // Create PostgreSQL Repositories
@@ -56,37 +59,45 @@ async fn main() {
 
     // Initialize root user
     let root_user_id = init_root_user(&user_repository).await;
-    
+
     // Initialize sample post (if no posts exist and root user exists)
     if let Some(user_id) = root_user_id {
         init_sample_post(&post_repository, user_id).await;
     }
 
     // Create application state (contains Post and User Repository)
-    let app_state = Arc::new(api::post_controller::AppState::new(post_repository, user_repository));
+    let app_state = Arc::new(api::post_controller::AppState::new(
+        post_repository,
+        user_repository,
+    ));
 
     // Initialize storage backend (local filesystem for now, can be switched to S3 later)
     let storage_dir = std::env::var("STORAGE_DIR").unwrap_or_else(|_| "uploads".to_string());
     let storage_base_url = std::env::var("STORAGE_BASE_URL")
         .unwrap_or_else(|_| "http://localhost:3000/uploads".to_string());
-    
-    let storage = Arc::new(storage::LocalStorage::new(&storage_dir, storage_base_url.clone()));
-    
+
+    let storage = Arc::new(storage::LocalStorage::new(
+        &storage_dir,
+        storage_base_url.clone(),
+    ));
+
     // Ensure storage directory exists
-    storage.ensure_directory().await
+    storage
+        .ensure_directory()
+        .await
         .expect("Failed to create storage directory");
-    
+
     tracing::info!("✅ Storage initialized");
     tracing::info!("   Directory: {}", storage_dir);
     tracing::info!("   Base URL: {}", storage_base_url);
 
     // Create routes (API Controller layer)
-    let app = create_router(app_state, storage);
+    let app = create_router(app_state, storage, db);
 
     // Start server
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
         .await
-        .unwrap();
+        .expect("Failed to bind to 0.0.0.0:3000");
 
     tracing::info!("🚀 RustPress API server is running!");
     tracing::info!("📍 API server at:");
@@ -115,7 +126,7 @@ async fn main() {
     tracing::info!("");
     tracing::info!("💡 Frontend should run on http://localhost:5173 (Vite dev server)");
 
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, app).await.expect("Server error");
 }
 
 /// Run SeaORM migrations
@@ -167,19 +178,21 @@ async fn init_root_user<UR: UserRepository>(user_repository: &UR) -> Option<i64>
             tracing::info!("   Username: {}", user.username);
             tracing::info!("   Email: {}", user.email);
             tracing::info!("   User ID: {}", user.id);
-            
+
             if !is_password_from_env {
                 tracing::warn!("");
                 tracing::warn!("⚠️  Root password was randomly generated:");
                 tracing::warn!("   Password: {}", password);
                 tracing::warn!("");
                 tracing::warn!("   Please save this password securely!");
-                tracing::warn!("   You can set ROOT_PASSWORD environment variable to use a custom password.");
+                tracing::warn!(
+                    "   You can set ROOT_PASSWORD environment variable to use a custom password."
+                );
                 tracing::warn!("");
             } else {
                 tracing::info!("   Password: [from ROOT_PASSWORD environment variable]");
             }
-            
+
             Some(user.id)
         }
         Err(e) => {

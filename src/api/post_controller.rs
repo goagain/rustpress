@@ -28,15 +28,20 @@ impl<PR: PostRepository, UR: UserRepository> AppState<PR, UR> {
     }
 }
 
-/// Extended application state that includes storage backend
+/// Extended application state that includes storage backend and database connection
 pub struct ExtendedAppState<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend> {
     pub app_state: Arc<AppState<PR, UR>>,
     pub storage: Arc<SB>,
+    pub db: Arc<sea_orm::DatabaseConnection>,
 }
 
 impl<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend> ExtendedAppState<PR, UR, SB> {
-    pub fn new(app_state: Arc<AppState<PR, UR>>, storage: Arc<SB>) -> Self {
-        Self { app_state, storage }
+    pub fn new(app_state: Arc<AppState<PR, UR>>, storage: Arc<SB>, db: sea_orm::DatabaseConnection) -> Self {
+        Self { 
+            app_state, 
+            storage,
+            db: Arc::new(db),
+        }
     }
 }
 

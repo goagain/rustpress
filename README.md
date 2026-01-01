@@ -28,8 +28,15 @@ We are currently implementing the fundamental CMS features:
   - Image upload and storage
   - Flexible storage backend (currently local filesystem, extensible to S3)
 
+- **Admin Panel**
+  - Settings management (external registration, maintenance mode)
+  - User management (view, ban/unban, reset password)
+  - Post management (view all posts, delete any post)
+  - Plugin management (enable/disable, reserved for future plugin system)
+
 - **API & Documentation**
   - RESTful API with OpenAPI/Swagger documentation
+  - Admin API endpoints at `/api/admin/*`
   - Comprehensive error handling
   - Request/response logging
 
@@ -90,6 +97,10 @@ Future enhancements include:
 - **Vite** - Build tool
 - **React Markdown** - Markdown rendering
 
+**Note**: The project uses two separate frontend applications:
+- `frontend/` - Main user-facing blog interface
+- `admin-frontend/` - Standalone admin panel for system administration
+
 ### DevOps
 - **Docker** - Containerization
 - **Docker Compose** - Multi-container orchestration
@@ -147,8 +158,16 @@ Future enhancements include:
    npm run dev
    ```
 
-7. **Access the application**
-   - Frontend: http://localhost:5173
+7. **Start the admin frontend** (optional, in another terminal)
+   ```bash
+   cd admin-frontend
+   npm install
+   npm run dev
+   ```
+
+8. **Access the application**
+   - Main Frontend: http://localhost:5173
+   - Admin Frontend: http://localhost:5174
    - API: http://localhost:3000
    - API Docs: http://localhost:3000/swagger-ui
 
@@ -166,17 +185,23 @@ docker-compose up -d
 rustpress/
 ├── src/                    # Rust backend source code
 │   ├── api/               # API controllers and routes
+│   │   └── admin_controller.rs  # Admin API endpoints
 │   ├── auth/              # Authentication middleware
 │   ├── dto/               # Data Transfer Objects
+│   │   └── admin.rs       # Admin DTOs
 │   ├── entity/            # SeaORM entities
 │   ├── repository/        # Data access layer
 │   ├── storage/           # Storage backend abstraction
 │   └── main.rs            # Application entry point
-├── frontend/              # React frontend
+├── frontend/              # Main React frontend (user-facing)
 │   └── src/
 │       ├── components/    # React components
 │       ├── services/      # API client
 │       └── utils/         # Utility functions
+├── admin-frontend/        # Admin React frontend (separate project)
+│   └── src/
+│       ├── components/    # Admin components
+│       └── services/      # Admin API client
 ├── rustpress-migration/   # Standalone migration tool
 │   └── src/
 │       ├── lib.rs        # Migration library

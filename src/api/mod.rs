@@ -1,3 +1,4 @@
+pub mod admin_api;
 pub mod page_controller;
 pub mod post_controller;
 pub mod routes;

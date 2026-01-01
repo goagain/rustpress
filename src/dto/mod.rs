@@ -7,6 +7,7 @@
 
 pub mod post;
 pub mod user;
+pub mod admin;
 
 // Re-export commonly used DTOs
 pub use post::{
@@ -17,5 +18,11 @@ pub use post::{
 pub use user::{
     User, UserRole, CreateUserRequest, LoginRequest, LoginResponse,
     RefreshTokenRequest, RefreshTokenResponse, UserResponse,
+};
+pub use admin::{
+    AdminSettingsResponse, AdminSettingsUpdateRequest,
+    AdminUserListResponse, AdminPostListResponse,
+    AdminBanUserRequest, AdminResetPasswordRequest, AdminResetPasswordResponse,
+    AdminPluginListResponse, AdminPluginUpdateRequest,
 };
 
