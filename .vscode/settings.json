@@ -4,6 +4,17 @@
   "rust-analyzer.inlayHints.typeHints.enable": true,
   "rust-analyzer.inlayHints.parameterHints.enable": true,
   "rust-analyzer.cargo.features": "all",
+  "rust-analyzer.debug.openDebugPane": true,
+  "rust-analyzer.debug.sourceFileMap": {
+    "/rustc/<id>": "${env:USERPROFILE}/.rustup/toolchains/<toolchain>/lib/rustlib/src/rust"
+  },
+  "lldb.verboseLogging": false,
+  "rust-analyzer.debug.engine": "auto",
+  "rust-analyzer.debug.engineSettings": {
+    "lldb": {
+      "terminal": "integrated"
+    }
+  },
   
   // Files to exclude from search
   "files.exclude": {

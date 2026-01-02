@@ -5,23 +5,15 @@
       "type": "lldb",
       "request": "launch",
       "name": "Debug RustPress (Backend)",
-      "cargo": {
-        "args": [
-          "build",
-          "--bin=rustpress"
-        ],
-        "filter": {
-          "name": "rustpress",
-          "kind": "bin"
-        }
-      },
+      "program": "${workspaceFolder}/target/debug/rustpress",
       "args": [],
       "cwd": "${workspaceFolder}",
       "env": {
         "RUST_LOG": "debug"
       },
       "console": "integratedTerminal",
-      "sourceLanguages": ["rust"]
+      "sourceLanguages": ["rust"],
+      "preLaunchTask": "cargo build"
     },
     {
       "type": "lldb",
@@ -55,9 +47,7 @@
       "skipFiles": ["<node_internals>/**"],
       "env": {
         "NODE_ENV": "development"
-      },
-      "preLaunchTask": "npm install (frontend)"
-    },
+      }    },
     {
       "type": "node",
       "request": "launch",
@@ -71,7 +61,6 @@
       "env": {
         "NODE_ENV": "development"
       },
-      "preLaunchTask": "npm install (admin-frontend)"
     },
     {
       "type": "lldb",

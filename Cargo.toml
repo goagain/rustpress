@@ -1,7 +1,13 @@
+[workspace]
+members = [
+    ".",
+    "rustpress-migration"
+]
+
 [package]
 name = "rustpress"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 rustpress-migration = { path = "rustpress-migration" }
@@ -27,3 +33,4 @@ jsonwebtoken = "9.2"
 bcrypt = "0.15"
 toml = "0.8"
 color-eyre = "0.6"
+reqwest = { version = "0.13.1", default-features = false, features = ["json", "native-tls", "http2"] }
