@@ -1,28 +1,32 @@
 //! Data Transfer Objects (DTOs)
-//! 
+//!
 //! This module contains all DTOs used by the business layer for:
 //! - API requests/responses
 //! - Data transfer in the business logic layer
 //! - Conversion with database Entities
 
+pub mod admin;
+pub mod openai;
 pub mod post;
 pub mod user;
-pub mod admin;
 
 // Re-export commonly used DTOs
+pub use admin::{
+    AdminBanUserRequest, AdminPluginListResponse, AdminPluginUpdateRequest, AdminPostListResponse,
+    AdminResetPasswordRequest, AdminResetPasswordResponse,
+    AdminSettingsTabsResponse, AdminSettingsUpdateRequest,
+    AdminUserListResponse, SettingItem, SettingsTab,
+};
+pub use openai::{
+    ChatCompletionRequest, ChatCompletionResponse, ChatMessage, CreateOpenAIApiKeyRequest,
+    ListOpenAIModelsResponse, OpenAIApiKeyResponse, OpenAIModel, SetDefaultModelRequest,
+    TestOpenAIApiKeyResponse, TestTokenUsage, UpdateOpenAIApiKeyRequest,
+};
 pub use post::{
-    Post, CreatePostRequest, UpdatePostRequest, PostResponse,
-    PostVersion, PostVersionResponse, CreateVersionRequest,
-    PostDraft, PostDraftResponse, SaveDraftRequest,
+    CreatePostRequest, Post, PostDraft, PostDraftResponse, PostResponse, PostVersion,
+    PostVersionResponse, SaveDraftRequest, UpdatePostRequest,
 };
 pub use user::{
-    User, UserRole, CreateUserRequest, LoginRequest, LoginResponse,
-    RefreshTokenRequest, RefreshTokenResponse, UserResponse,
+    CreateUserRequest, LoginRequest, LoginResponse, RefreshTokenRequest, RefreshTokenResponse,
+    User, UserResponse, UserRole,
 };
-pub use admin::{
-    AdminSettingsResponse, AdminSettingsUpdateRequest,
-    AdminUserListResponse, AdminPostListResponse,
-    AdminBanUserRequest, AdminResetPasswordRequest, AdminResetPasswordResponse,
-    AdminPluginListResponse, AdminPluginUpdateRequest,
-};
-

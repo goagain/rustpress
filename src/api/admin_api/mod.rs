@@ -1,8 +1,11 @@
 pub mod admin_controller;
+pub mod openai_controller;
 pub mod post_controller;
+pub mod settings_helper;
 pub mod user_controller;
 
 pub use admin_controller::*;
+pub use openai_controller::*;
 pub use post_controller::*;
 pub use user_controller::*;
 
@@ -10,9 +13,8 @@ use crate::api::post_controller::ExtendedAppState;
 use crate::repository::{PostRepository, UserRepository};
 use crate::storage::StorageBackend;
 use axum::{
-    middleware,
+    Router, middleware,
     routing::{delete, get, post, put},
-    Router,
 };
 use std::sync::Arc;
 
@@ -28,12 +30,10 @@ pub fn create_admin_router<
 
     Router::new()
         // Settings management
-        // GET /api/admin/settings - Get all settings
+        // GET /api/admin/settings/tabs - Get all settings tabs
         // PUT /api/admin/settings - Update settings
-        .route(
-            "/settings",
-            get(get_settings::<PR, UR, SB>).put(update_settings::<PR, UR, SB>),
-        )
+        .route("/settings/tabs", get(get_settings_tabs::<PR, UR, SB>))
+        .route("/settings", put(update_settings::<PR, UR, SB>))
         // User management
         // GET /api/admin/users - Get all users (with ban status)
         // POST /api/admin/users/:id/ban - Ban or unban a user
@@ -54,6 +54,27 @@ pub fn create_admin_router<
         // PUT /api/admin/plugins/:id - Update plugin status
         .route("/plugins", get(get_all_plugins::<PR, UR, SB>))
         .route("/plugins/:id", put(update_plugin::<PR, UR, SB>))
+        // OpenAI API key management
+        // GET /api/admin/openai/keys - Get all API keys
+        // POST /api/admin/openai/keys - Create new API key
+        // PUT /api/admin/openai/keys/:id - Update API key
+        // DELETE /api/admin/openai/keys/:id - Delete API key
+        // POST /api/admin/openai/keys/:id/test - Test API key
+        // GET /api/admin/openai/keys/:id/models - List available models
+        // POST /api/admin/openai/keys/:id/models - Set default model
+        .route(
+            "/openai/keys",
+            get(get_openai_keys::<PR, UR, SB>).post(create_openai_key::<PR, UR, SB>),
+        )
+        .route(
+            "/openai/keys/:id",
+            put(update_openai_key::<PR, UR, SB>).delete(delete_openai_key::<PR, UR, SB>),
+        )
+        .route("/openai/keys/:id/test", post(test_openai_key::<PR, UR, SB>))
+        .route(
+            "/openai/keys/:id/models",
+            get(list_openai_models::<PR, UR, SB>).post(set_default_model::<PR, UR, SB>),
+        )
         // Apply both auth_middleware and admin_middleware to all admin routes
         // Order matters: auth_middleware must run first, then admin_middleware
         .layer(middleware::from_fn(admin_middleware))

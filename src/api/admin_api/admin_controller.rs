@@ -1,5 +1,6 @@
+use crate::dto::admin::{SettingItem, SettingsTab};
 use crate::dto::{
-    AdminPluginListResponse, AdminPluginUpdateRequest, AdminSettingsResponse,
+    AdminPluginListResponse, AdminPluginUpdateRequest, AdminSettingsTabsResponse,
     AdminSettingsUpdateRequest,
 };
 use crate::repository::{PostRepository, UserRepository};
@@ -15,24 +16,24 @@ use std::sync::Arc;
 // Settings and plugins management
 use crate::entity::{plugins, settings};
 
-/// Get all settings
+/// Get all settings tabs
 #[utoipa::path(
     get,
-    path = "/api/admin/settings",
+    path = "/api/admin/settings/tabs",
     responses(
-        (status = 200, description = "Successfully retrieved settings", body = AdminSettingsResponse),
+        (status = 200, description = "Successfully retrieved settings tabs", body = AdminSettingsTabsResponse),
         (status = 500, description = "Internal server error")
     ),
     tag = "Admin"
 )]
-pub async fn get_settings<
+pub async fn get_settings_tabs<
     PR: PostRepository,
     UR: UserRepository,
     SB: crate::storage::StorageBackend,
 >(
     State(state): State<Arc<crate::api::post_controller::ExtendedAppState<PR, UR, SB>>>,
     Extension(_current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
-) -> Result<Json<AdminSettingsResponse>, StatusCode> {
+) -> Result<Json<AdminSettingsTabsResponse>, StatusCode> {
     // Get database connection from state
     let db = get_db_connection(&state);
 
@@ -46,19 +47,53 @@ pub async fn get_settings<
         settings_map.insert(setting.key.clone(), setting.value);
     }
 
-    // Default values if not in database
-    let allow_external_registration = settings_map
-        .get("allow_external_registration")
-        .map(|s| s == "true")
-        .unwrap_or(true);
+    // Build settings tabs
+    let mut tabs = Vec::new();
 
-    Ok(Json(AdminSettingsResponse {
-        allow_external_registration,
-        maintenance_mode: settings_map
-            .get("maintenance_mode")
-            .map(|s| s == "true")
-            .unwrap_or(false),
-    }))
+    // General Settings Tab
+    let general_items = vec![
+        SettingItem {
+            key: "allow_external_registration".to_string(),
+            value: serde_json::Value::Bool(
+                settings_map
+                    .get("allow_external_registration")
+                    .map(|s| s == "true")
+                    .unwrap_or(true),
+            ),
+            label: "Allow external user registration".to_string(),
+            description: Some("Allow users to register new accounts".to_string()),
+            input_type: "checkbox".to_string(),
+        },
+        SettingItem {
+            key: "maintenance_mode".to_string(),
+            value: serde_json::Value::Bool(
+                settings_map
+                    .get("maintenance_mode")
+                    .map(|s| s == "true")
+                    .unwrap_or(false),
+            ),
+            label: "Maintenance mode".to_string(),
+            description: Some("Enable maintenance mode to restrict site access".to_string()),
+            input_type: "checkbox".to_string(),
+        },
+    ];
+
+    tabs.push(SettingsTab {
+        id: "general".to_string(),
+        label: "General".to_string(),
+        description: Some("General system settings".to_string()),
+        items: general_items,
+    });
+
+    // OpenAI Settings Tab (empty items, managed by separate component)
+    tabs.push(SettingsTab {
+        id: "openai".to_string(),
+        label: "OpenAI".to_string(),
+        description: Some("OpenAI API key and model management".to_string()),
+        items: vec![], // OpenAI keys are managed via separate API endpoints
+    });
+
+    Ok(Json(AdminSettingsTabsResponse { tabs }))
 }
 
 /// Update settings
@@ -67,7 +102,7 @@ pub async fn get_settings<
     path = "/api/admin/settings",
     request_body = AdminSettingsUpdateRequest,
     responses(
-        (status = 200, description = "Successfully updated settings", body = AdminSettingsResponse),
+        (status = 200, description = "Successfully updated settings", body = AdminSettingsTabsResponse),
         (status = 500, description = "Internal server error")
     ),
     tag = "Admin"
@@ -80,12 +115,20 @@ pub async fn update_settings<
     State(state): State<Arc<crate::api::post_controller::ExtendedAppState<PR, UR, SB>>>,
     Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
     axum::Json(payload): axum::Json<AdminSettingsUpdateRequest>,
-) -> Result<Json<AdminSettingsResponse>, StatusCode> {
+) -> Result<Json<AdminSettingsTabsResponse>, StatusCode> {
     let db = get_db_connection(&state);
 
-    // Update allow_external_registration
-    if let Some(value) = payload.allow_external_registration {
-        let existing = settings::Entity::find_by_id("allow_external_registration")
+    // Update each setting in the payload
+    for (key, value) in payload.settings {
+        let value_str = match value {
+            serde_json::Value::Bool(b) => b.to_string(),
+            serde_json::Value::Number(n) => n.to_string(),
+            serde_json::Value::String(s) => s,
+            serde_json::Value::Null => "".to_string(),
+            _ => value.to_string(),
+        };
+
+        let existing = settings::Entity::find_by_id(&key)
             .one(&*db)
             .await
             .map_err(|e| {
@@ -95,16 +138,16 @@ pub async fn update_settings<
 
         if let Some(existing_model) = existing {
             let mut active_model: settings::ActiveModel = existing_model.into();
-            active_model.value = Set(value.to_string());
+            active_model.value = Set(value_str);
             active_model.update(&*db).await.map_err(|e| {
                 tracing::error!("Failed to update settings: {}", e);
                 StatusCode::INTERNAL_SERVER_ERROR
             })?;
         } else {
             let setting = settings::ActiveModel {
-                key: Set("allow_external_registration".to_string()),
-                value: Set(value.to_string()),
-                description: Set(Some("Whether external users can register".to_string())),
+                key: Set(key.clone()),
+                value: Set(value_str),
+                description: Set(None),
                 ..Default::default()
             };
             setting.insert(&*db).await.map_err(|e| {
@@ -114,39 +157,8 @@ pub async fn update_settings<
         }
     }
 
-    // Update maintenance_mode
-    if let Some(value) = payload.maintenance_mode {
-        let existing = settings::Entity::find_by_id("maintenance_mode")
-            .one(&*db)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to query settings: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
-
-        if let Some(existing_model) = existing {
-            let mut active_model: settings::ActiveModel = existing_model.into();
-            active_model.value = Set(value.to_string());
-            active_model.update(&*db).await.map_err(|e| {
-                tracing::error!("Failed to update settings: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
-        } else {
-            let setting = settings::ActiveModel {
-                key: Set("maintenance_mode".to_string()),
-                value: Set(value.to_string()),
-                description: Set(Some("Whether the site is in maintenance mode".to_string())),
-                ..Default::default()
-            };
-            setting.insert(&*db).await.map_err(|e| {
-                tracing::error!("Failed to insert settings: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
-        }
-    }
-
-    // Return updated settings
-    get_settings(State(state), Extension(current_user)).await
+    // Return updated settings tabs
+    get_settings_tabs(State(state), Extension(current_user)).await
 }
 
 /// Get all plugins
