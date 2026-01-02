@@ -1,21 +1,38 @@
+use crate::dto::{PostResponse, UserResponse};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
-use crate::dto::{UserResponse, PostResponse};
 use serde_json::Value as JsonValue;
+use utoipa::ToSchema;
 
-/// Admin settings response
+/// Setting item in a settings tab
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct AdminSettingsResponse {
-    pub allow_external_registration: bool,
-    pub maintenance_mode: bool,
+pub struct SettingItem {
+    pub key: String,
+    pub value: JsonValue,
+    pub label: String,
+    pub description: Option<String>,
+    pub input_type: String, // "checkbox", "text", "password", "number", "textarea", etc.
 }
 
-/// Admin settings update request
+/// Settings tab
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct SettingsTab {
+    pub id: String,
+    pub label: String,
+    pub description: Option<String>,
+    pub items: Vec<SettingItem>,
+}
+
+/// Admin settings tabs response
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct AdminSettingsTabsResponse {
+    pub tabs: Vec<SettingsTab>,
+}
+
+/// Admin settings update request (key-value pairs)
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct AdminSettingsUpdateRequest {
-    pub allow_external_registration: Option<bool>,
-    pub maintenance_mode: Option<bool>,
+    pub settings: std::collections::HashMap<String, JsonValue>,
 }
 
 /// Admin user list response (with ban status)
@@ -68,4 +85,11 @@ pub struct AdminPluginListResponse {
 pub struct AdminPluginUpdateRequest {
     pub enabled: Option<bool>,
     pub config: Option<JsonValue>,
+}
+
+/// Admin OpenAI API test response
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct AdminOpenAITestResponse {
+    pub success: bool,
+    pub message: String,
 }
