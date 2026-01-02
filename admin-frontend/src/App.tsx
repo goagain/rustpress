@@ -1,7 +1,14 @@
 import { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AdminPanel } from './components/Admin/AdminPanel';
 import { LoginForm } from './components/Auth/LoginForm';
-import { api, isAuthenticated } from './services/api';
+import { SettingsPage } from './components/Admin/SettingsPage';
+import { GeneralSettingsPage } from './components/Admin/Settings/GeneralSettingsPage';
+import { OpenAISettingsPage } from './components/Admin/Settings/OpenAISettingsPage';
+import { UsersPage } from './components/Admin/UsersPage';
+import { PostsPage } from './components/Admin/PostsPage';
+import { PluginsPage } from './components/Admin/PluginsPage';
+import { api, isAuthenticated, clearTokens } from './services/api';
 
 export default function App() {
   const [authenticated, setAuthenticated] = useState(false);
@@ -15,11 +22,11 @@ export default function App() {
           if (user.role === 'Admin' || user.role === 'Root') {
             setAuthenticated(true);
           } else {
-            api.clearTokens();
+            clearTokens();
             setAuthenticated(false);
           }
         } catch (err) {
-          api.clearTokens();
+          clearTokens();
           setAuthenticated(false);
         }
       } else {
@@ -41,10 +48,30 @@ export default function App() {
   if (checking) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-500">检查认证状态...</div>
+        <div className="text-gray-500">Checking authentication status...</div>
       </div>
     );
   }
 
-  return authenticated ? <AdminPanel /> : <LoginForm onSuccess={handleLoginSuccess} />;
+  if (!authenticated) {
+    return <LoginForm onSuccess={handleLoginSuccess} />;
+  }
+
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<AdminPanel />}>
+          <Route index element={<Navigate to="/settings" replace />} />
+          <Route path="settings" element={<SettingsPage />}>
+            <Route index element={<Navigate to="/settings/general" replace />} />
+            <Route path="general" element={<GeneralSettingsPage />} />
+            <Route path="openai" element={<OpenAISettingsPage />} />
+          </Route>
+          <Route path="users" element={<UsersPage />} />
+          <Route path="posts" element={<PostsPage />} />
+          <Route path="plugins" element={<PluginsPage />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
 }
