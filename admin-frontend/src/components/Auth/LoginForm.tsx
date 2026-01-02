@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, saveTokens } from '../../services/api';
+import { api, saveTokens, clearTokens } from '../../services/api';
 import type { LoginRequest } from '../../types';
 
 interface LoginFormProps {
@@ -25,8 +25,8 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       // Check if user is admin
       const user = await api.getCurrentUser();
       if (user.role !== 'Admin' && user.role !== 'Root') {
-        api.clearTokens();
-        setError('只有管理员可以访问此面板');
+        clearTokens();
+        setError('Only administrators can access this panel');
         setLoading(false);
         return;
       }
@@ -35,7 +35,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
         onSuccess();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '登录失败');
+      setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -46,10 +46,10 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            管理员登录
+            Admin Login
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            请输入管理员账户信息
+            Please enter your administrator credentials
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -61,7 +61,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
               <label htmlFor="username" className="sr-only">
-                用户名
+                Username
               </label>
               <input
                 id="username"
@@ -69,14 +69,14 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
                 type="text"
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-orange-500 focus:border-orange-500 focus:z-10 sm:text-sm"
-                placeholder="用户名"
+                placeholder="Username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
               />
             </div>
             <div>
               <label htmlFor="password" className="sr-only">
-                密码
+                Password
               </label>
               <input
                 id="password"
@@ -84,7 +84,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
                 type="password"
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-orange-500 focus:border-orange-500 focus:z-10 sm:text-sm"
-                placeholder="密码"
+                placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -97,7 +97,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
               disabled={loading}
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? '登录中...' : '登录'}
+              {loading ? 'Logging in...' : 'Login'}
             </button>
           </div>
         </form>
