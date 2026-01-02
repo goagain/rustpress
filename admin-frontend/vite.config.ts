@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react-swc'
 import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
-export default defineConfig(({ command, mode }) => {
+export default defineConfig(({ command }) => {
   // In development, use '/' as base (runs on separate port)
   // In production build, use '/admin/' as base (served from backend)
   const base = command === 'serve' ? '/' : '/admin/';
