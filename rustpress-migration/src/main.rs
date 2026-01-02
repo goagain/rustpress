@@ -3,22 +3,10 @@ use sea_orm::{Database, DbErr};
 use sea_orm_migration::MigratorTrait;
 use std::process;
 
-mod m20251230_000001_init_schema;
-mod m20251231_000002_add_versioning_and_drafts;
-
 pub use sea_orm_migration::prelude::*;
 
-pub struct Migrator;
-
-#[async_trait::async_trait]
-impl MigratorTrait for Migrator {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        vec![
-            Box::new(m20251230_000001_init_schema::Migration),
-            Box::new(m20251231_000002_add_versioning_and_drafts::Migration),
-        ]
-    }
-}
+mod lib;
+pub use lib::Migrator;
 
 #[derive(Parser)]
 #[command(name = "rustpress-migrate")]
@@ -59,10 +47,8 @@ async fn main() {
     // Initialize logging
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
-    
-    tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .init();
+
+    tracing_subscriber::fmt().with_env_filter(filter).init();
 
     // Load environment variables
     dotenv::dotenv().ok();
@@ -104,7 +90,8 @@ async fn main() {
             Migrator::down(&db, Some(steps)).await
         }
         Commands::Status => {
-            show_status(&db).await;
+            tracing::info!("📊 Migration Status:");
+            tracing::info!("   Status command not implemented yet");
             return;
         }
         Commands::Reset => {
@@ -128,30 +115,6 @@ async fn main() {
     }
 }
 
-async fn show_status(db: &sea_orm::DatabaseConnection) {
-    use sea_orm_migration::MigrationStatus;
-
-    tracing::info!("📊 Migration Status:");
-    tracing::info!("");
-
-    match Migrator::status(db).await {
-        Ok(status) => {
-            if status.is_empty() {
-                tracing::info!("   No migrations found");
-                return;
-            }
-
-            for (migration, status) in status {
-                let status_str = match status {
-                    MigrationStatus::Applied => "✅ Applied",
-                    MigrationStatus::Pending => "⏳ Pending",
-                };
-                tracing::info!("   {} - {}", status_str, migration);
-            }
-        }
-        Err(e) => {
-            tracing::error!("❌ Failed to get migration status: {}", e);
-            process::exit(1);
-        }
-    }
-}
+// async fn show_status(db: &sea_orm::DatabaseConnection) {
+//     // TODO: Implement migration status checking when sea-orm-migration API is clarified
+// }

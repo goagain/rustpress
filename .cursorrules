@@ -182,6 +182,7 @@ rustpress/
 ## Coding Guidelines
 
 ### Rust Backend (`src/`)
+- **Rust Edition**: 2024 (as specified in `Cargo.toml`)
 - Use async/await for all I/O operations
 - Use `Result` types for error handling
 - Follow Rust naming conventions (snake_case for functions/variables, PascalCase for types)
