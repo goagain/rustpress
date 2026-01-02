@@ -32,14 +32,27 @@ export interface LoginResponse {
 }
 
 // Admin types
-export interface AdminSettingsResponse {
-  allow_external_registration: boolean;
-  maintenance_mode: boolean;
+export interface SettingItem {
+  key: string;
+  value: any;
+  label: string;
+  description?: string;
+  input_type: string;
+}
+
+export interface SettingsTab {
+  id: string;
+  label: string;
+  description?: string;
+  items: SettingItem[];
+}
+
+export interface AdminSettingsTabsResponse {
+  tabs: SettingsTab[];
 }
 
 export interface AdminSettingsUpdateRequest {
-  allow_external_registration?: boolean;
-  maintenance_mode?: boolean;
+  settings: Record<string, any>;
 }
 
 export interface AdminUserListResponse {
@@ -78,4 +91,67 @@ export interface AdminPluginListResponse {
 export interface AdminPluginUpdateRequest {
   enabled?: boolean;
   config?: any;
+}
+
+export interface AdminOpenAITestResponse {
+  success: boolean;
+  message: string;
+}
+
+// OpenAI types
+export interface OpenAIApiKeyResponse {
+  id: number;
+  name: string;
+  api_key_masked: string;
+  endpoint: string | null;
+  is_default: boolean;
+  default_model: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateOpenAIApiKeyRequest {
+  name: string;
+  api_key: string;
+  endpoint?: string;
+  is_default?: boolean;
+  default_model?: string;
+}
+
+export interface UpdateOpenAIApiKeyRequest {
+  name?: string;
+  api_key?: string;
+  endpoint?: string;
+  is_default?: boolean;
+  default_model?: string;
+}
+
+export interface TestOpenAIApiKeyResponse {
+  success: boolean;
+  message: string;
+  response_content?: string;
+  model_used?: string;
+  token_usage?: TestTokenUsage;
+}
+
+export interface TestTokenUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
+export interface OpenAIModel {
+  id: string;
+  object: string;
+  created: number;
+  owned_by: string;
+}
+
+export interface ListOpenAIModelsResponse {
+  models: OpenAIModel[];
+  default_model: string | null;
+}
+
+export interface SetDefaultModelRequest {
+  model_id: string;
 }

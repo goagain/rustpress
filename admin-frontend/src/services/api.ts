@@ -1,13 +1,19 @@
 import type {
   LoginRequest,
   LoginResponse,
-  AdminSettingsResponse,
+  AdminSettingsTabsResponse,
   AdminSettingsUpdateRequest,
   AdminUserListResponse,
   AdminPostListResponse,
   AdminResetPasswordResponse,
   AdminPluginListResponse,
   AdminPluginUpdateRequest,
+  OpenAIApiKeyResponse,
+  CreateOpenAIApiKeyRequest,
+  UpdateOpenAIApiKeyRequest,
+  TestOpenAIApiKeyResponse,
+  ListOpenAIModelsResponse,
+  SetDefaultModelRequest,
 } from '../types';
 
 const API_BASE_URL = '/api';
@@ -85,8 +91,11 @@ const authenticatedFetch = async (
   if (response.status === 401 && token) {
     const newToken = await refreshAccessToken();
     if (newToken) {
-      headers.Authorization = `Bearer ${newToken}`;
-      response = await fetch(url, { ...options, headers });
+      const newHeaders: HeadersInit = {
+        ...headers,
+        Authorization: `Bearer ${newToken}`,
+      };
+      response = await fetch(url, { ...options, headers: newHeaders });
     } else {
       clearTokens();
       window.location.href = '/login';
@@ -138,17 +147,17 @@ export const api = {
   },
 
   // Admin API methods
-  async getAdminSettings(): Promise<AdminSettingsResponse> {
-    const response = await authenticatedFetch(`${API_BASE_URL}/admin/settings`);
+  async getAdminSettingsTabs(): Promise<AdminSettingsTabsResponse> {
+    const response = await authenticatedFetch(`${API_BASE_URL}/admin/settings/tabs`);
     if (!response.ok) {
-      throw new Error('Failed to get settings');
+      throw new Error('Failed to get settings tabs');
     }
     return response.json();
   },
 
   async updateAdminSettings(
     settings: AdminSettingsUpdateRequest
-  ): Promise<AdminSettingsResponse> {
+  ): Promise<AdminSettingsTabsResponse> {
     const response = await authenticatedFetch(`${API_BASE_URL}/admin/settings`, {
       method: 'PUT',
       body: JSON.stringify(settings),
@@ -158,6 +167,7 @@ export const api = {
     }
     return response.json();
   },
+
 
   async getAdminUsers(): Promise<AdminUserListResponse[]> {
     const response = await authenticatedFetch(`${API_BASE_URL}/admin/users`);
@@ -245,6 +255,97 @@ export const api = {
     );
     if (!response.ok) {
       throw new Error('Failed to update plugin');
+    }
+    return response.json();
+  },
+
+  // OpenAI API methods
+  async getOpenAIApiKeys(): Promise<OpenAIApiKeyResponse[]> {
+    const response = await authenticatedFetch(`${API_BASE_URL}/admin/openai/keys`);
+    if (!response.ok) {
+      throw new Error('Failed to get OpenAI API keys');
+    }
+    return response.json();
+  },
+
+  async createOpenAIApiKey(
+    request: CreateOpenAIApiKeyRequest
+  ): Promise<OpenAIApiKeyResponse> {
+    const response = await authenticatedFetch(`${API_BASE_URL}/admin/openai/keys`, {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to create OpenAI API key');
+    }
+    return response.json();
+  },
+
+  async updateOpenAIApiKey(
+    keyId: number,
+    request: UpdateOpenAIApiKeyRequest
+  ): Promise<OpenAIApiKeyResponse> {
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/admin/openai/keys/${keyId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(request),
+      }
+    );
+    if (!response.ok) {
+      throw new Error('Failed to update OpenAI API key');
+    }
+    return response.json();
+  },
+
+  async deleteOpenAIApiKey(keyId: number): Promise<void> {
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/admin/openai/keys/${keyId}`,
+      {
+        method: 'DELETE',
+      }
+    );
+    if (!response.ok) {
+      throw new Error('Failed to delete OpenAI API key');
+    }
+  },
+
+  async testOpenAIApiKey(keyId: number): Promise<TestOpenAIApiKeyResponse> {
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/admin/openai/keys/${keyId}/test`,
+      {
+        method: 'POST',
+      }
+    );
+    if (!response.ok) {
+      throw new Error('Failed to test OpenAI API key');
+    }
+    return response.json();
+  },
+
+  async listOpenAIModels(keyId: number): Promise<ListOpenAIModelsResponse> {
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/admin/openai/keys/${keyId}/models`
+    );
+    if (!response.ok) {
+      throw new Error('Failed to list OpenAI models');
+    }
+    return response.json();
+  },
+
+  async setDefaultModel(
+    keyId: number,
+    request: SetDefaultModelRequest
+  ): Promise<OpenAIApiKeyResponse> {
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/admin/openai/keys/${keyId}/models`,
+      {
+        method: 'POST',
+        body: JSON.stringify(request),
+      }
+    );
+    if (!response.ok) {
+      throw new Error('Failed to set default model');
     }
     return response.json();
   },
