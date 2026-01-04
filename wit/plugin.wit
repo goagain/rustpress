@@ -1,0 +1,19 @@
+package blog:system;
+
+interface hooks {
+    record post-data {
+        id: s64,
+        title: string,
+        content: string,
+        category: string,
+        author-id: s64,
+        created-at: string,
+        updated-at: string,
+    }
+
+    on-post-published: func(post: post-data) -> result<post-data, string>;
+}
+
+world plugin-world {
+    export hooks;
+}
