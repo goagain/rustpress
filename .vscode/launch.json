@@ -5,7 +5,17 @@
       "type": "lldb",
       "request": "launch",
       "name": "Debug RustPress (Backend)",
-      "program": "${workspaceFolder}/target/debug/rustpress",
+      "cargo": {
+        "args": [
+          "run",
+          "--bin=rustpress",
+          "--manifest-path=Cargo.toml"
+        ],
+        "filter": {
+          "name": "rustpress",
+          "kind": "bin"
+        }
+      },
       "args": [],
       "cwd": "${workspaceFolder}",
       "env": {

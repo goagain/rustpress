@@ -1,0 +1,17 @@
+[package]
+id = "com.example.poetry"
+name = "Poetry Plugin"
+version = "1.0.0"
+description = "Adds a line of Shakespearean sonnet to the beginning of posts"
+author = "RustPress Team"
+
+[permissions]
+required = [
+    "post:read",   # Need to read posts to modify them
+    "post:write",  # Need to write/modify posts
+]
+
+[hooks]
+registered = [
+    "filter_post_published",  # Modify post content when published
+]

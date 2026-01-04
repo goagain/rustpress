@@ -40,15 +40,19 @@ We are currently implementing the fundamental CMS features:
   - Comprehensive error handling
   - Request/response logging
 
-### 🚧 Phase 2: Plugin System & AI Integration (Next)
+### ✅ Phase 2: Plugin System & AI Integration (Current)
 
-The next phase will focus on:
+The current phase implements:
 
 - **Plugin Architecture**
-  - Plugin API design and implementation
-  - Hot-reloadable plugins
-  - Plugin lifecycle management
-  - Inter-plugin communication
+  - ✅ RPK package format (.rpk ZIP files)
+  - ✅ TOML manifest with required/optional permissions
+  - ✅ Permission-based access control with granular management
+  - ✅ Hook system (action/filter pattern like WordPress)
+  - ✅ Plugin lifecycle management (install, enable/disable)
+  - ✅ Plugin manager with async hook execution
+  - ✅ Permission denied error handling and graceful degradation
+  - 🔄 Plugin execution runtime (WebAssembly integration planned)
 
 - **AI Integration**
   - AI-powered content generation
@@ -79,6 +83,279 @@ Future enhancements include:
   - Theme editor and customization tools
   - Live preview functionality
   - Responsive theme templates
+
+## 🔌 Plugin System
+
+RustPress features a comprehensive plugin system using RPK (RustPress Plugin) packages. RPK is a ZIP-based format containing plugin code, assets, and a TOML manifest with explicit permission declarations.
+
+### RPK Package Format
+
+RPK packages are ZIP files with `.rpk` extension containing:
+
+```
+plugin.rpk/
+├── manifest.toml          # Plugin manifest (TOML format)
+├── plugin.wasm           # WebAssembly plugin binary
+├── frontend/             # Frontend assets (future use)
+│   └── static/
+├── admin_frontend/       # Admin assets (future use)
+│   └── static/
+└── assets/               # Plugin-specific assets
+```
+
+### Plugin Manifest (TOML)
+
+```toml
+[package]
+id = "com.rui.editor"
+name = "AI Editor Assistant"
+version = "1.0.0"
+description = "AI-powered content assistant for blog posts"
+author = "Rui Team"
+
+# Required permissions (automatically granted)
+permissions = [
+    "fs:read-assets"  # Must be able to read own static assets
+]
+
+# Optional permissions with descriptions
+[optional_permissions]
+"ai:summary" = "Generate AI-powered article summaries"
+"net:unsplash" = "Search and insert images from Unsplash"
+"post:read" = "Read existing posts for content analysis"
+"post:write" = "Create and modify posts"
+
+# Hooks this plugin registers
+hooks = [
+    "action_post_published",
+    "filter_post_published"
+]
+```
+
+### Permission System
+
+Plugins use a two-tier permission system:
+
+#### Required Permissions
+- Automatically granted when plugin is enabled
+- Cannot be revoked by administrators
+- Essential for plugin core functionality
+- Examples: `fs:read-assets`, `post:read`
+
+#### Optional Permissions
+- Must be explicitly granted by administrators
+- Can be enabled/disabled per plugin
+- For enhanced features that users may want to control
+- Examples: `ai:summary`, `net:unsplash`
+
+### Available Permissions
+
+**Core Permissions:**
+- `post:read` - Read posts and content
+- `post:write` - Create/modify posts
+- `user:read` - Read user information
+- `user:write` - Create/modify users
+
+**AI & External Services:**
+- `ai:summary` - Use AI for content summarization
+- `ai:chat` - General AI chat capabilities
+
+**File System & Assets:**
+- `fs:read-assets` - Read plugin's own assets
+- `upload:read` - Read uploaded files
+- `upload:write` - Upload files
+
+**Network & External APIs:**
+- `net:unsplash` - Access Unsplash image API
+
+**System Settings:**
+- `settings:read` - Read system configuration
+- `settings:write` - Modify system settings
+
+### Permission Inflation Detection
+
+RustPress implements **Permission Inflation Detection** to prevent plugins from gaining unauthorized permissions during updates. This security mechanism:
+
+1. **Compares Versions**: Analyzes permission differences between current and new versions
+2. **Detects Inflation**: Identifies new required or optional permissions
+3. **Requires Review**: Suspends plugin activation until administrator approval
+4. **Maintains Security**: Ensures no permission creep without explicit consent
+
+#### Update Flow
+
+```
+Plugin Update → Permission Analysis → Needs Review? → Admin Approval → Activation
+     ↓                ↓                    ↓              ↓            ↓
+  Upload RPK      Compare manifests    If new perms    Review UI    Enable plugin
+```
+
+#### Example Scenario
+
+**Plugin v1.0.0** (currently installed):
+```toml
+permissions = ["post:read"]
+```
+
+**Plugin v2.0.0** (update):
+```toml
+permissions = ["post:read", "ai:summary"]  # NEW: ai:summary
+[optional_permissions]
+"ai:chat" = "Advanced AI features"  # NEW: optional permission
+```
+
+**Result**: Plugin status becomes `pending_review`, administrator must approve new permissions before plugin can be enabled.
+
+#### Administrator Review Interface
+
+When a plugin requires permission review, administrators see:
+- ✅ Currently granted permissions (grayed out)
+- ⚠️ New required permissions (must be approved)
+- 🔄 New optional permissions (can be toggled)
+- 📋 Permission descriptions and rationale
+
+Only after explicit approval does the plugin become active with the new permissions.
+
+### Hook System
+
+Plugins can hook into system events using actions and filters:
+
+#### Actions (Asynchronous, Non-blocking)
+Actions are fired when events occur and don't expect return values. They're executed asynchronously and won't block the main flow.
+
+- `action_post_published` - Fired when a post is published
+- `action_user_created` - Fired when a user is created
+- `action_user_login` - Fired when a user logs in
+
+#### Filters (Synchronous, Can Modify Data)
+Filters are fired during data processing and can modify the data being processed. They're executed synchronously.
+
+- `filter_post_published` - Can modify post data during publishing
+- `filter_user_created` - Can modify user data during creation
+- `filter_authenticate` - Can modify authentication process
+
+### Security Gatekeeper System
+
+RustPress implements a **Host-Side Truth** security model to prevent data leakage vulnerabilities. The system validates plugin permissions against hook requirements at installation and load time.
+
+#### Hook Permission Requirements
+
+Each hook is explicitly defined with its permission requirements:
+
+| Hook | Required Permission | Data Exposure | Description |
+|------|-------------------|---------------|-------------|
+| `action_post_published` | `post:read` | High | Receives full post content |
+| `filter_post_published` | `post:write` | High | Can modify post data |
+| `action_user_created` | `user:read` | Medium | Receives user information |
+| `action_user_login` | `user:read` | Medium | Receives login events |
+| `filter_authenticate` | `user:write` | High | Can modify authentication |
+| `action_system_startup` | None | None | Pure notification, no data |
+| `action_system_shutdown` | None | None | Pure notification, no data |
+
+#### Security Validation Process
+
+1. **Installation Time**: Plugin manifest is validated against hook registry
+2. **Load Time**: Only hooks with proper permissions are registered
+3. **Runtime**: Permission checks on every API call
+
+**Example Security Violation Prevention:**
+
+```toml
+# Malicious plugin tries to register hook without permission
+[package]
+id = "evil.plugin"
+
+# No post:read permission declared!
+permissions = []
+
+[optional_permissions]
+# Even if optional, not granted
+
+hooks = ["action_post_published"] # ❌ SECURITY VIOLATION
+```
+
+**Result**: Installation fails with `PluginSecurityViolation` error.
+
+#### Plugin API with Security
+
+Plugins communicate with the host through a permission-checked API:
+
+```rust
+// Plugin code (WebAssembly)
+let host_api = PluginHostApi::new(plugin_manager, "myplugin".to_string());
+
+// All calls automatically check permissions
+match host_api.ai_chat(messages).await {
+    Ok(result) => println!("AI response: {}", result),
+    Err(PermissionDeniedError { permission, .. }) => {
+        // Handle permission denial gracefully
+        println!("AI features disabled (missing: {})", permission);
+    }
+}
+```
+
+#### Host API Methods
+
+- `get_posts(query)` - Read posts (requires `post:read`)
+- `save_post(post)` - Create/modify posts (requires `post:write`)
+- `ai_chat(messages)` - Use AI features (requires `ai:*` permissions)
+- `get_settings(keys)` - Read settings (requires `settings:read`)
+- `update_settings(settings)` - Modify settings (requires `settings:write`)
+
+### Installation & Management
+
+#### Installing Plugins
+
+Upload RPK files through the admin interface or API:
+
+```bash
+POST /api/admin/plugins
+{
+  "rpk_data": "base64-encoded-rpk-file",
+  "permission_grants": {
+    "ai:summary": true,
+    "net:unsplash": false
+  }
+}
+```
+
+During installation:
+1. RPK file is validated and extracted
+2. Manifest is parsed and permissions initialized
+3. Required permissions are automatically granted
+4. Optional permissions use provided grants (default: false)
+
+#### Permission Management
+
+Administrators can manage optional permissions through the admin interface:
+
+```bash
+GET /api/admin/plugins/{plugin_id}/permissions
+PUT /api/admin/plugins/{plugin_id}/permissions
+{
+  "permissions": {
+    "ai:summary": true,
+    "net:unsplash": true
+  }
+}
+```
+
+#### Runtime Behavior
+
+Plugins handle permission denials gracefully:
+
+```rust
+// Plugin code example
+match host_api.ai_chat(messages) {
+    Ok(result) => {
+        // Success: use AI features
+        apply_summary(result);
+    }
+    Err(PermissionDeniedError { .. }) => {
+        // Graceful degradation: skip AI features
+        show_basic_interface();
+    }
+}
+```
 
 ## 🛠️ Technology Stack
 
