@@ -3,8 +3,8 @@ use crate::dto::{
     CreateUserRequest, LoginRequest, LoginResponse, RefreshTokenRequest, RefreshTokenResponse,
     User, UserResponse, UserRole,
 };
-use crate::repository::{PostRepository, UserRepository};
 use crate::repository::postgres_user_repository::verify_password;
+use crate::repository::{PostRepository, UserRepository};
 use axum::{
     extract::{Extension, Path, State},
     http::StatusCode,
@@ -24,7 +24,11 @@ use std::sync::Arc;
     ),
     tag = "Users"
 )]
-pub async fn get_users<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+pub async fn get_users<
+    PR: PostRepository,
+    UR: UserRepository,
+    SB: crate::storage::StorageBackend,
+>(
     State(state): State<Arc<crate::api::post_controller::ExtendedAppState<PR, UR, SB>>>,
 ) -> Result<Json<Vec<UserResponse>>, StatusCode> {
     match state.app_state.user_repository.find_all().await {
@@ -49,7 +53,11 @@ pub async fn get_users<PR: PostRepository, UR: UserRepository, SB: crate::storag
     ),
     tag = "Users"
 )]
-pub async fn get_user<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+pub async fn get_user<
+    PR: PostRepository,
+    UR: UserRepository,
+    SB: crate::storage::StorageBackend,
+>(
     Path(id): Path<i64>,
     State(state): State<Arc<crate::api::post_controller::ExtendedAppState<PR, UR, SB>>>,
 ) -> Result<Json<UserResponse>, StatusCode> {
@@ -75,7 +83,11 @@ pub async fn get_user<PR: PostRepository, UR: UserRepository, SB: crate::storage
     ),
     tag = "Users"
 )]
-pub async fn create_user<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+pub async fn create_user<
+    PR: PostRepository,
+    UR: UserRepository,
+    SB: crate::storage::StorageBackend,
+>(
     State(state): State<Arc<crate::api::post_controller::ExtendedAppState<PR, UR, SB>>>,
     Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
     axum::Json(payload): axum::Json<CreateUserRequest>,
@@ -86,12 +98,22 @@ pub async fn create_user<PR: PostRepository, UR: UserRepository, SB: crate::stor
     }
 
     // Check if username already exists
-    if let Ok(Some(_)) = state.app_state.user_repository.find_by_username(&payload.username).await {
+    if let Ok(Some(_)) = state
+        .app_state
+        .user_repository
+        .find_by_username(&payload.username)
+        .await
+    {
         return Err(StatusCode::CONFLICT);
     }
 
     // Check if email already exists
-    if let Ok(Some(_)) = state.app_state.user_repository.find_by_email(&payload.email).await {
+    if let Ok(Some(_)) = state
+        .app_state
+        .user_repository
+        .find_by_email(&payload.email)
+        .await
+    {
         return Err(StatusCode::CONFLICT);
     }
 
@@ -118,7 +140,11 @@ pub async fn create_user<PR: PostRepository, UR: UserRepository, SB: crate::stor
     ),
     tag = "Users"
 )]
-pub async fn update_user<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+pub async fn update_user<
+    PR: PostRepository,
+    UR: UserRepository,
+    SB: crate::storage::StorageBackend,
+>(
     Path(id): Path<i64>,
     State(state): State<Arc<crate::api::post_controller::ExtendedAppState<PR, UR, SB>>>,
     Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
@@ -147,13 +173,18 @@ pub async fn update_user<PR: PostRepository, UR: UserRepository, SB: crate::stor
         username: payload.username,
         email: payload.email,
         role: payload.role,
-        salt: existing_user.salt, // Keep original salt
+        salt: existing_user.salt,                   // Keep original salt
         password_hash: existing_user.password_hash, // Keep original password, password update should be handled separately
         created_at: existing_user.created_at,
         updated_at: existing_user.updated_at,
     };
 
-    match state.app_state.user_repository.update(&id, updated_user).await {
+    match state
+        .app_state
+        .user_repository
+        .update(&id, updated_user)
+        .await
+    {
         Ok(Some(user)) => Ok(Json(UserResponse::from(user))),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -176,7 +207,11 @@ pub async fn update_user<PR: PostRepository, UR: UserRepository, SB: crate::stor
     ),
     tag = "Users"
 )]
-pub async fn delete_user<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+pub async fn delete_user<
+    PR: PostRepository,
+    UR: UserRepository,
+    SB: crate::storage::StorageBackend,
+>(
     Path(id): Path<i64>,
     State(state): State<Arc<crate::api::post_controller::ExtendedAppState<PR, UR, SB>>>,
     Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
@@ -217,16 +252,30 @@ pub async fn login<PR: PostRepository, UR: UserRepository, SB: crate::storage::S
     axum::Json(payload): axum::Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>, StatusCode> {
     // Find user
-    let user = match state.app_state.user_repository.find_by_username(&payload.username).await {
+    let user = match state
+        .app_state
+        .user_repository
+        .find_by_username(&payload.username)
+        .await
+    {
         Ok(Some(user)) => user,
         Ok(None) => return Err(StatusCode::UNAUTHORIZED),
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
 
     // Verify password
-    if !verify_password(&payload.password, &user.password_hash).unwrap_or(false) {
+    let password_valid = verify_password(&payload.password, &user.password_hash).unwrap_or(false);
+    if !password_valid {
+        tracing::warn!(
+            "Password verification failed for user: {}",
+            payload.username
+        );
         return Err(StatusCode::UNAUTHORIZED);
     }
+    tracing::info!(
+        "Password verification successful for user: {}",
+        payload.username
+    );
 
     // Generate tokens
     let role_str = match user.role {
@@ -235,11 +284,13 @@ pub async fn login<PR: PostRepository, UR: UserRepository, SB: crate::storage::S
         UserRole::User => "User",
     };
 
-    let access_token = JwtUtil::generate_access_token(user.id, user.username.clone(), role_str.to_string())
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let access_token =
+        JwtUtil::generate_access_token(user.id, user.username.clone(), role_str.to_string())
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let refresh_token = JwtUtil::generate_refresh_token(user.id, user.username, role_str.to_string())
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let refresh_token =
+        JwtUtil::generate_refresh_token(user.id, user.username, role_str.to_string())
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(LoginResponse {
         access_token,
@@ -263,7 +314,11 @@ pub async fn login<PR: PostRepository, UR: UserRepository, SB: crate::storage::S
     ),
     tag = "Auth"
 )]
-pub async fn refresh_token<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+pub async fn refresh_token<
+    PR: PostRepository,
+    UR: UserRepository,
+    SB: crate::storage::StorageBackend,
+>(
     State(state): State<Arc<crate::api::post_controller::ExtendedAppState<PR, UR, SB>>>,
     axum::Json(payload): axum::Json<RefreshTokenRequest>,
 ) -> Result<Json<RefreshTokenResponse>, StatusCode> {
@@ -272,7 +327,12 @@ pub async fn refresh_token<PR: PostRepository, UR: UserRepository, SB: crate::st
         .map_err(|_| StatusCode::UNAUTHORIZED)?;
 
     // Get user information
-    let user = match state.app_state.user_repository.find_by_id(&claims.sub).await {
+    let user = match state
+        .app_state
+        .user_repository
+        .find_by_id(&claims.sub)
+        .await
+    {
         Ok(Some(user)) => user,
         Ok(None) => return Err(StatusCode::UNAUTHORIZED),
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -294,4 +354,3 @@ pub async fn refresh_token<PR: PostRepository, UR: UserRepository, SB: crate::st
         expires_in: 3600, // 1 hour
     }))
 }
-

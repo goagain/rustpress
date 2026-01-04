@@ -1,12 +1,12 @@
+use crate::dto::plugin::PluginHook;
 use crate::dto::{
-    CreatePostRequest, Post, PostResponse, UpdatePostRequest,
-    CreateUserRequest, LoginRequest, LoginResponse, RefreshTokenRequest, RefreshTokenResponse,
-    UserResponse, UserRole,
-    PostVersionResponse, PostDraftResponse, SaveDraftRequest,
+    CreatePostRequest, CreateUserRequest, LoginRequest, LoginResponse, Post, PostDraftResponse,
+    PostResponse, PostVersionResponse, RefreshTokenRequest, RefreshTokenResponse, SaveDraftRequest,
+    UpdatePostRequest, UserResponse, UserRole,
 };
 use crate::repository::{PostRepository, UserRepository};
 use axum::{
-    extract::{Path, State, Extension},
+    extract::{Extension, Path, State},
     http::StatusCode,
     response::Json,
 };
@@ -28,19 +28,32 @@ impl<PR: PostRepository, UR: UserRepository> AppState<PR, UR> {
     }
 }
 
-/// Extended application state that includes storage backend and database connection
-pub struct ExtendedAppState<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend> {
+/// Extended application state that includes storage backend, database connection, and plugin manager
+pub struct ExtendedAppState<
+    PR: PostRepository,
+    UR: UserRepository,
+    SB: crate::storage::StorageBackend,
+> {
     pub app_state: Arc<AppState<PR, UR>>,
     pub storage: Arc<SB>,
     pub db: Arc<sea_orm::DatabaseConnection>,
+    pub plugin_manager: Arc<crate::plugin::PluginManager>,
 }
 
-impl<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend> ExtendedAppState<PR, UR, SB> {
-    pub fn new(app_state: Arc<AppState<PR, UR>>, storage: Arc<SB>, db: sea_orm::DatabaseConnection) -> Self {
-        Self { 
-            app_state, 
+impl<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>
+    ExtendedAppState<PR, UR, SB>
+{
+    pub fn new(
+        app_state: Arc<AppState<PR, UR>>,
+        storage: Arc<SB>,
+        db: sea_orm::DatabaseConnection,
+        plugin_manager: Arc<crate::plugin::PluginManager>,
+    ) -> Self {
+        Self {
+            app_state,
             storage,
             db: Arc::new(db),
+            plugin_manager,
         }
     }
 }
@@ -57,7 +70,11 @@ impl<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>
     ),
     tag = "Posts"
 )]
-pub async fn get_posts<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+pub async fn get_posts<
+    PR: PostRepository,
+    UR: UserRepository,
+    SB: crate::storage::StorageBackend,
+>(
     State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
 ) -> Result<Json<Vec<PostResponse>>, StatusCode> {
     match state.app_state.post_repository.find_all().await {
@@ -83,7 +100,11 @@ pub async fn get_posts<PR: PostRepository, UR: UserRepository, SB: crate::storag
     ),
     tag = "Posts"
 )]
-pub async fn get_post<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+pub async fn get_post<
+    PR: PostRepository,
+    UR: UserRepository,
+    SB: crate::storage::StorageBackend,
+>(
     Path(id): Path<String>,
     State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
 ) -> Result<Json<PostResponse>, StatusCode> {
@@ -91,8 +112,8 @@ pub async fn get_post<PR: PostRepository, UR: UserRepository, SB: crate::storage
         Ok(num) => num,
         Err(_) => return Err(StatusCode::BAD_REQUEST),
     };
-    
-        match state.app_state.post_repository.find_by_id(&id_num).await {
+
+    match state.app_state.post_repository.find_by_id(&id_num).await {
         Ok(Some(post)) => Ok(Json(PostResponse::from(post))),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -113,14 +134,85 @@ pub async fn get_post<PR: PostRepository, UR: UserRepository, SB: crate::storage
     ),
     tag = "Posts"
 )]
-pub async fn create_post<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+pub async fn create_post<
+    PR: PostRepository,
+    UR: UserRepository,
+    SB: crate::storage::StorageBackend,
+>(
     State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
     Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
     axum::Json(payload): axum::Json<CreatePostRequest>,
 ) -> Result<(axum::http::StatusCode, Json<PostResponse>), StatusCode> {
     // User must be authenticated (already checked by middleware)
-    match state.app_state.post_repository.create(payload).await {
-        Ok(post) => Ok((StatusCode::CREATED, Json(PostResponse::from(post)))),
+
+    // Create initial post data for filtering
+    let initial_post_data = serde_json::json!({
+        "id": 0, // Will be set after creation
+        "title": payload.title,
+        "content": payload.content,
+        "category": payload.category,
+        "author_id": payload.author_id,
+        "created_at": chrono::Utc::now(),
+        "updated_at": chrono::Utc::now()
+    });
+
+    // Apply filter hooks to modify post data before creation
+    let plugin_manager = state.plugin_manager.clone();
+    let (filtered_post_data, _filter_results) = plugin_manager
+        .execute_filter_hook(PluginHook::FilterPostPublished, initial_post_data)
+        .await;
+
+    // Extract modified data for post creation
+    let filtered_title = filtered_post_data["title"]
+        .as_str()
+        .unwrap_or(&payload.title)
+        .to_string();
+    let filtered_content = filtered_post_data["content"]
+        .as_str()
+        .unwrap_or(&payload.content)
+        .to_string();
+    let filtered_category = filtered_post_data["category"]
+        .as_str()
+        .unwrap_or(&payload.category)
+        .to_string();
+
+    // Create post with filtered data
+    let filtered_payload = CreatePostRequest {
+        title: filtered_title,
+        content: filtered_content,
+        category: filtered_category,
+        author_id: payload.author_id,
+    };
+
+    match state
+        .app_state
+        .post_repository
+        .create(filtered_payload)
+        .await
+    {
+        Ok(post) => {
+            let post_response = PostResponse::from(post.clone());
+
+            // Execute post published action hooks asynchronously (non-blocking)
+            let final_post_data = serde_json::json!({
+                "id": post.id,
+                "title": post.title,
+                "content": post.content,
+                "category": post.category,
+                "author_id": post.author_id,
+                "created_at": post.created_at,
+                "updated_at": post.updated_at
+            });
+
+            let plugin_manager_clone = state.plugin_manager.clone();
+            tokio::spawn(async move {
+                plugin_manager_clone
+                    .execute_action_hook(PluginHook::ActionPostPublished, final_post_data)
+                    .await;
+            });
+
+            Ok((StatusCode::CREATED, Json(post_response)))
+        }
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
@@ -143,7 +235,11 @@ pub async fn create_post<PR: PostRepository, UR: UserRepository, SB: crate::stor
     ),
     tag = "Posts"
 )]
-pub async fn update_post<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+pub async fn update_post<
+    PR: PostRepository,
+    UR: UserRepository,
+    SB: crate::storage::StorageBackend,
+>(
     Path(id): Path<String>,
     State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
     Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
@@ -153,7 +249,7 @@ pub async fn update_post<PR: PostRepository, UR: UserRepository, SB: crate::stor
         Ok(num) => num,
         Err(_) => return Err(StatusCode::BAD_REQUEST),
     };
-    
+
     // Get existing post
     let existing_post = match state.app_state.post_repository.find_by_id(&id_num).await {
         Ok(Some(post)) => post,
@@ -182,13 +278,18 @@ pub async fn update_post<PR: PostRepository, UR: UserRepository, SB: crate::stor
         deleted_at: existing_post.deleted_at,
     };
 
-        match state.app_state.post_repository.update(
+    match state
+        .app_state
+        .post_repository
+        .update(
             &id_num,
             updated_post,
             payload.create_version,
             payload.change_note,
             user_id, // Use extracted user_id from JWT token
-        ).await {
+        )
+        .await
+    {
         Ok(Some(post)) => Ok(Json(PostResponse::from(post))),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -212,7 +313,11 @@ pub async fn update_post<PR: PostRepository, UR: UserRepository, SB: crate::stor
     ),
     tag = "Posts"
 )]
-pub async fn delete_post<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+pub async fn delete_post<
+    PR: PostRepository,
+    UR: UserRepository,
+    SB: crate::storage::StorageBackend,
+>(
     Path(id): Path<String>,
     State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
     Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
@@ -221,7 +326,7 @@ pub async fn delete_post<PR: PostRepository, UR: UserRepository, SB: crate::stor
         Ok(num) => num,
         Err(_) => return Err(StatusCode::BAD_REQUEST),
     };
-    
+
     // Get existing post to check ownership
     let existing_post = match state.app_state.post_repository.find_by_id(&id_num).await {
         Ok(Some(post)) => post,
@@ -233,7 +338,7 @@ pub async fn delete_post<PR: PostRepository, UR: UserRepository, SB: crate::stor
     if !current_user.is_author_or_admin(existing_post.author_id) {
         return Err(StatusCode::FORBIDDEN);
     }
-    
+
     match state.app_state.post_repository.delete(&id_num).await {
         Ok(true) => Ok(StatusCode::NO_CONTENT),
         Ok(false) => Err(StatusCode::NOT_FOUND),
@@ -396,7 +501,11 @@ fn delete_post_doc(_id: String) {}
     ),
     tag = "Posts"
 )]
-pub async fn get_post_versions<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+pub async fn get_post_versions<
+    PR: PostRepository,
+    UR: UserRepository,
+    SB: crate::storage::StorageBackend,
+>(
     Path(id): Path<String>,
     State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
 ) -> Result<Json<Vec<PostVersionResponse>>, StatusCode> {
@@ -404,9 +513,14 @@ pub async fn get_post_versions<PR: PostRepository, UR: UserRepository, SB: crate
         Ok(num) => num,
         Err(_) => return Err(StatusCode::BAD_REQUEST),
     };
-    
+
     match state.app_state.post_repository.get_versions(&id_num).await {
-        Ok(versions) => Ok(Json(versions.into_iter().map(PostVersionResponse::from).collect())),
+        Ok(versions) => Ok(Json(
+            versions
+                .into_iter()
+                .map(PostVersionResponse::from)
+                .collect(),
+        )),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
@@ -427,7 +541,11 @@ pub async fn get_post_versions<PR: PostRepository, UR: UserRepository, SB: crate
     ),
     tag = "Posts"
 )]
-pub async fn get_post_version<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+pub async fn get_post_version<
+    PR: PostRepository,
+    UR: UserRepository,
+    SB: crate::storage::StorageBackend,
+>(
     Path((post_id, version_id)): Path<(String, String)>,
     State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
 ) -> Result<Json<PostVersionResponse>, StatusCode> {
@@ -435,8 +553,13 @@ pub async fn get_post_version<PR: PostRepository, UR: UserRepository, SB: crate:
         Ok(num) => num,
         Err(_) => return Err(StatusCode::BAD_REQUEST),
     };
-    
-    match state.app_state.post_repository.get_version(&version_id_num).await {
+
+    match state
+        .app_state
+        .post_repository
+        .get_version(&version_id_num)
+        .await
+    {
         Ok(Some(version)) => Ok(Json(PostVersionResponse::from(version))),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -459,7 +582,11 @@ pub async fn get_post_version<PR: PostRepository, UR: UserRepository, SB: crate:
     ),
     tag = "Posts"
 )]
-pub async fn restore_post_from_version<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+pub async fn restore_post_from_version<
+    PR: PostRepository,
+    UR: UserRepository,
+    SB: crate::storage::StorageBackend,
+>(
     Path((post_id, version_id)): Path<(String, String)>,
     State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
     Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
@@ -472,9 +599,14 @@ pub async fn restore_post_from_version<PR: PostRepository, UR: UserRepository, S
         Ok(num) => num,
         Err(_) => return Err(StatusCode::BAD_REQUEST),
     };
-    
+
     // Get post to check ownership
-    let post = match state.app_state.post_repository.find_by_id(&post_id_num).await {
+    let post = match state
+        .app_state
+        .post_repository
+        .find_by_id(&post_id_num)
+        .await
+    {
         Ok(Some(p)) => p,
         Ok(None) => return Err(StatusCode::NOT_FOUND),
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -484,8 +616,13 @@ pub async fn restore_post_from_version<PR: PostRepository, UR: UserRepository, S
     if !current_user.is_author_or_admin(post.author_id) {
         return Err(StatusCode::FORBIDDEN);
     }
-    
-    match state.app_state.post_repository.restore_from_version(&post_id_num, &version_id_num, current_user.id).await {
+
+    match state
+        .app_state
+        .post_repository
+        .restore_from_version(&post_id_num, &version_id_num, current_user.id)
+        .await
+    {
         Ok(Some(restored_post)) => Ok(Json(PostResponse::from(restored_post))),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -506,18 +643,24 @@ pub async fn restore_post_from_version<PR: PostRepository, UR: UserRepository, S
     ),
     tag = "Drafts"
 )]
-pub async fn save_draft<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+pub async fn save_draft<
+    PR: PostRepository,
+    UR: UserRepository,
+    SB: crate::storage::StorageBackend,
+>(
     State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
     Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
     axum::Json(payload): axum::Json<SaveDraftRequest>,
 ) -> Result<Json<PostDraftResponse>, StatusCode> {
     // Use current user ID from context
     let author_id = current_user.id;
-    
-    match state.app_state.post_repository.save_draft(
-        author_id,
-        payload,
-    ).await {
+
+    match state
+        .app_state
+        .post_repository
+        .save_draft(author_id, payload)
+        .await
+    {
         Ok(draft) => Ok(Json(PostDraftResponse::from(draft))),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
@@ -538,18 +681,26 @@ pub async fn save_draft<PR: PostRepository, UR: UserRepository, SB: crate::stora
     ),
     tag = "Drafts"
 )]
-pub async fn get_draft<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+pub async fn get_draft<
+    PR: PostRepository,
+    UR: UserRepository,
+    SB: crate::storage::StorageBackend,
+>(
     State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
     Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<PostDraftResponse>, StatusCode> {
     // Use current user ID from context
     let author_id = current_user.id;
-    
-    let post_id = params.get("post_id")
-        .and_then(|s| s.parse::<i64>().ok());
-    
-    match state.app_state.post_repository.get_draft(post_id, author_id).await {
+
+    let post_id = params.get("post_id").and_then(|s| s.parse::<i64>().ok());
+
+    match state
+        .app_state
+        .post_repository
+        .get_draft(post_id, author_id)
+        .await
+    {
         Ok(Some(draft)) => Ok(Json(PostDraftResponse::from(draft))),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -566,15 +717,26 @@ pub async fn get_draft<PR: PostRepository, UR: UserRepository, SB: crate::storag
     ),
     tag = "Drafts"
 )]
-pub async fn get_all_drafts<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+pub async fn get_all_drafts<
+    PR: PostRepository,
+    UR: UserRepository,
+    SB: crate::storage::StorageBackend,
+>(
     State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
     Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
 ) -> Result<Json<Vec<PostDraftResponse>>, StatusCode> {
     // Use current user ID from context
     let author_id = current_user.id;
-    
-    match state.app_state.post_repository.get_all_drafts(author_id).await {
-        Ok(drafts) => Ok(Json(drafts.into_iter().map(PostDraftResponse::from).collect())),
+
+    match state
+        .app_state
+        .post_repository
+        .get_all_drafts(author_id)
+        .await
+    {
+        Ok(drafts) => Ok(Json(
+            drafts.into_iter().map(PostDraftResponse::from).collect(),
+        )),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
@@ -594,18 +756,26 @@ pub async fn get_all_drafts<PR: PostRepository, UR: UserRepository, SB: crate::s
     ),
     tag = "Drafts"
 )]
-pub async fn delete_draft<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>(
+pub async fn delete_draft<
+    PR: PostRepository,
+    UR: UserRepository,
+    SB: crate::storage::StorageBackend,
+>(
     State(state): State<Arc<ExtendedAppState<PR, UR, SB>>>,
     Extension(current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Result<StatusCode, StatusCode> {
     // Use current user ID from context
     let author_id = current_user.id;
-    
-    let post_id = params.get("post_id")
-        .and_then(|s| s.parse::<i64>().ok());
-    
-    match state.app_state.post_repository.delete_draft(post_id, author_id).await {
+
+    let post_id = params.get("post_id").and_then(|s| s.parse::<i64>().ok());
+
+    match state
+        .app_state
+        .post_repository
+        .delete_draft(post_id, author_id)
+        .await
+    {
         Ok(_) => Ok(StatusCode::NO_CONTENT),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
