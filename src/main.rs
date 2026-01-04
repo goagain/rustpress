@@ -25,9 +25,10 @@ async fn main() {
     // Initialize logging with file location and line number
     // Log level can be controlled via RUST_LOG environment variable
     // Examples: RUST_LOG=info, RUST_LOG=debug, RUST_LOG=trace
-    // Default is "info" if RUST_LOG is not set
+    // Default is "info" if RUST_LOG is not set, but sqlx queries are set to debug level
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
+        .add_directive("sqlx=debug".parse().unwrap());
 
     tracing_subscriber::fmt()
         .with_file(true) // Show file path
@@ -82,15 +83,16 @@ async fn main() {
     ));
 
     // Initialize plugin manager
-    let plugin_manager = Arc::new(plugin::PluginManager::new(Arc::new(db.clone()))
-        .expect("Failed to create plugin manager"));
+    let plugin_manager = Arc::new(
+        plugin::PluginManager::new(Arc::new(db.clone())).expect("Failed to create plugin manager"),
+    );
     plugin_manager
         .load_enabled_plugins()
         .await
         .expect("Failed to load plugins");
 
     tracing::info!("✅ Plugin system initialized");
-    
+
     // Initialize storage backend (local filesystem for now, can be switched to S3 later)
     let storage_dir = std::env::var("STORAGE_DIR").unwrap_or_else(|_| "uploads".to_string());
     let storage_base_url = std::env::var("STORAGE_BASE_URL")
