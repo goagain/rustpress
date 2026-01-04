@@ -76,14 +76,14 @@ pub struct SetDefaultModelRequest {
 }
 
 /// Chat completion message
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ChatMessage {
     pub role: String,
     pub content: String,
 }
 
 /// Chat completion request
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ChatCompletionRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,

@@ -1,11 +1,14 @@
 //! Plugin Executor - Handles WASM plugin loading and execution
 
 use std::path::Path;
+use std::sync::Arc;
 
 /// Plugin executor that manages WASM plugin execution
 #[derive(Clone)]
 pub struct PluginExecutor {
     plugin_id: String,
+    ai_helper: Option<Arc<super::ai::AiHelper>>,
+    post_repo: Option<Arc<dyn crate::repository::PostRepository>>,
 }
 
 /// Loaded plugin instance with its hooks
@@ -18,7 +21,23 @@ pub struct LoadedPlugin {
 impl PluginExecutor {
     /// Create a new plugin executor for a specific plugin
     pub fn new(plugin_id: String) -> Self {
-        Self { plugin_id }
+        Self {
+            plugin_id,
+            ai_helper: None,
+            post_repo: None,
+        }
+    }
+
+    /// Set the AI helper for this executor
+    pub fn with_ai_helper(mut self, ai_helper: Arc<super::ai::AiHelper>) -> Self {
+        self.ai_helper = Some(ai_helper);
+        self
+    }
+
+    /// Set the post repository for this executor
+    pub fn with_post_repo(mut self, post_repo: Arc<dyn crate::repository::PostRepository>) -> Self {
+        self.post_repo = Some(post_repo);
+        self
     }
 
     /// Log info message with plugin prefix
@@ -39,6 +58,36 @@ impl PluginExecutor {
     /// Log debug message with plugin prefix
     pub fn log_debug(&self, message: &str) {
         tracing::debug!("[{}] {}", self.plugin_id, message);
+    }
+
+    /// List categories (for host-side use)
+    pub fn list_categories(
+        &self,
+    ) -> Vec<crate::plugin::plugin_world::exports::rustpress::system::hooks::CategoryInfo> {
+        // Query database for real category statistics
+        if let Some(repo) = &self.post_repo {
+            match futures::executor::block_on(repo.get_category_stats()) {
+                Ok(stats) => stats
+                    .into_iter()
+                    .map(|(name, count)| {
+                        crate::plugin::plugin_world::exports::rustpress::system::hooks::CategoryInfo {
+                            name,
+                            count,
+                        }
+                    })
+                    .collect(),
+                Err(e) => {
+                    tracing::error!("[{}] Failed to get category stats: {}", self.plugin_id, e);
+                    vec![]
+                }
+            }
+        } else {
+            tracing::warn!(
+                "[{}] No post repository available for category listing",
+                self.plugin_id
+            );
+            vec![]
+        }
     }
 
     /// Load a plugin from WASM file

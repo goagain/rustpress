@@ -42,6 +42,15 @@ impl HookRegistry {
             },
         );
 
+        map.insert(
+            "list_categories".into(),
+            HookDef {
+                name: "list_categories",
+                required_perm: Some("post:list_category"), // Must be able to list categories
+                description: "Allows listing of all categories with their post counts",
+            },
+        );
+
         // === User-Related Hooks ===
         // These hooks carry user data
         map.insert(

@@ -159,7 +159,7 @@ fn build_wasm_plugin(plugin_dir: &Path) -> Result<(), Box<dyn std::error::Error>
     println!("Plugin dir: {}", plugin_dir.display());
 
     let output = Command::new("cargo")
-        .args(&["build", "--target", "wasm32-unknown-unknown"])
+        .args(&["build", "--target", "wasm32-unknown-unknown", "--release"])
         .current_dir(plugin_dir)
         .output()?;
 
@@ -168,10 +168,23 @@ fn build_wasm_plugin(plugin_dir: &Path) -> Result<(), Box<dyn std::error::Error>
         return Err(format!("Failed to build WASM plugin:\n{}", stderr).into());
     }
 
+    // Get the plugin name from Cargo.toml
+    let cargo_toml_path = plugin_dir.join("Cargo.toml");
+    let cargo_content = fs::read_to_string(&cargo_toml_path)?;
+    let cargo_toml: toml::Value = toml::from_str(&cargo_content)?;
+    let plugin_name = cargo_toml
+        .get("package")
+        .and_then(|p| p.get("name"))
+        .and_then(|n| n.as_str())
+        .unwrap_or("auto_category_plugin");
+
+    // Convert underscores to hyphens for WASM file name
+    let wasm_file_name = plugin_name.replace("-", "_") + ".wasm";
+
     // Convert to WASM component
     println!("🔧 Converting to WASM component...");
-    let target_dir = plugin_dir.join("target/wasm32-unknown-unknown/debug");
-    let wasm_file = target_dir.join("poetry_plugin.wasm");
+    let target_dir = plugin_dir.join("target/wasm32-unknown-unknown/release");
+    let wasm_file = target_dir.join(&wasm_file_name);
 
     println!("WASM file path: {}", wasm_file.display());
     println!("Current dir: {}", plugin_dir.display());
@@ -234,10 +247,23 @@ fn create_rpk_package(
     zip.write_all(&manifest_content)?;
     println!("📝 Added manifest.toml");
 
+    // Get the plugin name from Cargo.toml to determine WASM file name
+    let cargo_toml_path = plugin_dir.join("Cargo.toml");
+    let cargo_content = fs::read_to_string(&cargo_toml_path)?;
+    let cargo_toml: toml::Value = toml::from_str(&cargo_content)?;
+    let plugin_name = cargo_toml
+        .get("package")
+        .and_then(|p| p.get("name"))
+        .and_then(|n| n.as_str())
+        .unwrap_or("auto_category_plugin");
+
+    // Convert underscores to hyphens for WASM file name
+    let wasm_file_name = plugin_name.replace("-", "_") + ".wasm";
+
     // Add plugin.wasm
-    let wasm_path = plugin_dir.join("target/wasm32-unknown-unknown/release/poetry_plugin.wasm");
+    let wasm_path = plugin_dir.join("target/wasm32-unknown-unknown/release").join(&wasm_file_name);
     if !wasm_path.exists() {
-        return Err("WASM file not found. Make sure the plugin built successfully.".into());
+        return Err(format!("WASM file not found: {}. Make sure the plugin built successfully.", wasm_path.display()).into());
     }
 
     let wasm_content = fs::read(&wasm_path)?;

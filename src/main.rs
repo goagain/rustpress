@@ -87,9 +87,18 @@ async fn main() {
         user_repository,
     ));
 
+    // Create AI helper for plugins
+    let ai_helper = Arc::new(plugin::ai::AiHelper::new(Arc::new(db.clone())));
+
+    // Create post repository for plugins
+    let postgres_post_repo = Arc::new(repository::PostgresPostRepository::new(db.clone()));
+
     // Initialize plugin manager
     let plugin_manager = Arc::new(
-        plugin::PluginManager::new(Arc::new(db.clone())).expect("Failed to create plugin manager"),
+        plugin::PluginManager::new(Arc::new(db.clone()))
+            .expect("Failed to create plugin manager")
+            .with_ai_helper(Arc::clone(&ai_helper))
+            .with_post_repo(postgres_post_repo),
     );
     plugin_manager
         .load_enabled_plugins()

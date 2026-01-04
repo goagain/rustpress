@@ -332,10 +332,28 @@ impl PostRepository for PostgresPostRepository {
     ) -> Result<Vec<PostDraft>, Box<dyn std::error::Error + Send + Sync>> {
         let models = post_drafts::Entity::find()
             .filter(post_drafts::Column::AuthorId.eq(author_id))
-            .order_by_desc(post_drafts::Column::UpdatedAt)
             .all(self.db.as_ref())
             .await?;
 
-        Ok(models.into_iter().map(PostDraft::from).collect())
+        let drafts = models.into_iter().map(PostDraft::from).collect();
+        Ok(drafts)
+    }
+
+    async fn get_category_stats(
+        &self,
+    ) -> Result<Vec<(String, i64)>, Box<dyn std::error::Error + Send + Sync>> {
+        use sea_orm::{prelude::*, QuerySelect};
+
+        let stats = posts::Entity::find()
+            .filter(posts::Column::Category.is_not_null())
+            .select_only()
+            .column(posts::Column::Category)
+            .column_as(Expr::col(posts::Column::Category).count(), "count")
+            .group_by(posts::Column::Category)
+            .into_tuple::<(String, i64)>()
+            .all(self.db.as_ref())
+            .await?;
+
+        Ok(stats)
     }
 }

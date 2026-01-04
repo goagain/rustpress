@@ -1,6 +1,8 @@
 //! Plugin system implementation
 
+pub mod ai;
 pub mod executor;
+pub mod plugin_world;
 pub mod registry;
 
 use crate::dto::plugin::PluginExecutionResult;
@@ -14,6 +16,10 @@ pub struct PluginManager {
     db: Arc<DatabaseConnection>,
     /// Plugin registry for loaded plugins
     registry: Arc<registry::PluginRegistry>,
+    /// AI helper for AI-powered plugins
+    ai_helper: Option<Arc<ai::AiHelper>>,
+    /// Post repository for category operations
+    post_repo: Option<Arc<dyn crate::repository::PostRepository>>,
 }
 
 impl PluginManager {
@@ -23,7 +29,24 @@ impl PluginManager {
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let registry = Arc::new(registry::PluginRegistry::new());
 
-        Ok(Self { db, registry })
+        Ok(Self {
+            db,
+            registry,
+            ai_helper: None,
+            post_repo: None,
+        })
+    }
+
+    /// Set the AI helper
+    pub fn with_ai_helper(mut self, ai_helper: Arc<ai::AiHelper>) -> Self {
+        self.ai_helper = Some(ai_helper);
+        self
+    }
+
+    /// Set the post repository
+    pub fn with_post_repo(mut self, post_repo: Arc<dyn crate::repository::PostRepository>) -> Self {
+        self.post_repo = Some(post_repo);
+        self
     }
 
     /// Load all enabled plugins from database
@@ -97,7 +120,13 @@ impl PluginManager {
             {
                 Ok(loaded_plugin) => {
                     // Register the plugin
-                    if let Err(e) = self.registry.register_plugin(loaded_plugin).await {
+                    let ai_helper_ref = self.ai_helper.as_ref();
+                    let post_repo_ref = self.post_repo.as_ref();
+                    if let Err(e) = self
+                        .registry
+                        .register_plugin(loaded_plugin, ai_helper_ref, post_repo_ref)
+                        .await
+                    {
                         tracing::error!("❌ Failed to register plugin {}: {}", plugin_id, e);
                         continue;
                     }

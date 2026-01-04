@@ -44,6 +44,8 @@ wasmtime = { version = "20.0", features = ["component-model"] }
 wasmtime-wasi = "20.0"
 wasi-common = "20.0"
 tempfile = "3.8"
+futures = "0.3"
+wit-bindgen = "0.50.0"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

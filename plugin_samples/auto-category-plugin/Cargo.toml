@@ -1,0 +1,20 @@
+[package]
+name = "auto-category-plugin"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = "0.50.0"
+
+[profile.release]
+opt-level = "s"
+debug = false
+strip = true
+lto = true
+codegen-units = 1
+panic = "abort"

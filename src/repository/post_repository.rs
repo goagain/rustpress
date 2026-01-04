@@ -36,4 +36,7 @@ pub trait PostRepository: Send + Sync {
     async fn get_draft(&self, post_id: Option<i64>, author_id: i64) -> Result<Option<PostDraft>, Box<dyn std::error::Error + Send + Sync>>;
     async fn delete_draft(&self, post_id: Option<i64>, author_id: i64) -> Result<bool, Box<dyn std::error::Error + Send + Sync>>;
     async fn get_all_drafts(&self, author_id: i64) -> Result<Vec<PostDraft>, Box<dyn std::error::Error + Send + Sync>>;
+
+    // Category statistics
+    async fn get_category_stats(&self) -> Result<Vec<(String, i64)>, Box<dyn std::error::Error + Send + Sync>>;
 }

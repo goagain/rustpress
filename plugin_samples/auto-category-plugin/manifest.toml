@@ -1,0 +1,12 @@
+[package]
+id = "com.example.auto-category"
+name = "Auto Category Plugin"
+version = "0.1.0"
+description = "Automatically generates categories for posts using AI"
+author = "RustPress Team"
+
+[permissions]
+required = ["post:read", "post:write", "post:list_category", "ai:chat"]
+
+[hooks]
+registered = ["filter_post_published"]

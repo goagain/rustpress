@@ -1,6 +1,4 @@
-package blog:types;
-
-package blog:types;
+package rustpress:types;
 
 // Data types shared between host and plugins
 record post-data {

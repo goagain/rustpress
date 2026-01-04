@@ -22,7 +22,7 @@ To build this plugin into an RPK package:
 
 ```bash
 # From the project root
-cargo run --bin rpk-builder plugins/poetry-plugin poetry-plugin.rpk
+cargo run --bin rpk-builder plugin_samples/poetry-plugin poetry-plugin.rpk
 ```
 
 This will:

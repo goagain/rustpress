@@ -47,11 +47,23 @@ impl PluginRegistry {
     pub async fn register_plugin(
         &self,
         plugin: LoadedPlugin,
+        ai_helper: Option<&Arc<super::ai::AiHelper>>,
+        post_repo: Option<&Arc<dyn crate::repository::PostRepository>>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let plugin_id = plugin.plugin_id.clone();
 
-        // Create executor for this plugin
-        let executor = PluginExecutor::new(plugin_id.clone());
+        // Create executor for this plugin with dependencies
+        let mut executor = PluginExecutor::new(plugin_id.clone());
+
+        // Set AI helper if available
+        if let Some(ai_helper) = ai_helper {
+            executor = executor.with_ai_helper(Arc::clone(ai_helper));
+        }
+
+        // Set post repository if available
+        if let Some(post_repo) = post_repo {
+            executor = executor.with_post_repo(Arc::clone(post_repo));
+        }
         {
             let mut executors = self.executors.write().await;
             executors.insert(plugin_id.clone(), executor);
