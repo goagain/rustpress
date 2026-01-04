@@ -7,20 +7,24 @@
 
 pub mod admin;
 pub mod openai;
+pub mod plugin;
 pub mod post;
 pub mod user;
 
 // Re-export commonly used DTOs
 pub use admin::{
-    AdminBanUserRequest, AdminPluginListResponse, AdminPluginUpdateRequest, AdminPostListResponse,
+    AdminBanUserRequest, AdminPluginEnableResponse, AdminPluginListResponse, AdminPluginUpdateRequest, AdminPostListResponse,
     AdminResetPasswordRequest, AdminResetPasswordResponse,
-    AdminSettingsTabsResponse, AdminSettingsUpdateRequest,
-    AdminUserListResponse, SettingItem, SettingsTab,
+    AdminUserListResponse,
 };
 pub use openai::{
     ChatCompletionRequest, ChatCompletionResponse, ChatMessage, CreateOpenAIApiKeyRequest,
     ListOpenAIModelsResponse, OpenAIApiKeyResponse, OpenAIModel, SetDefaultModelRequest,
     TestOpenAIApiKeyResponse, TestTokenUsage, UpdateOpenAIApiKeyRequest,
+};
+pub use plugin::{
+    ApprovePluginPermissionsRequest,
+    PluginInstallRequest, PluginPermissionsResponse, UpdatePluginPermissionsRequest,
 };
 pub use post::{
     CreatePostRequest, Post, PostDraft, PostDraftResponse, PostResponse, PostVersion,

@@ -3,6 +3,7 @@
 pub mod prelude;
 
 pub mod openai_api_keys;
+pub mod plugin_permissions;
 pub mod plugins;
 pub mod post_drafts;
 pub mod post_versions;
