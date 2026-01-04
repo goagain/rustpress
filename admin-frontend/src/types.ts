@@ -83,7 +83,9 @@ export interface AdminPluginListResponse {
   description: string | null;
   version: string;
   enabled: boolean;
+  status: string; // "enabled", "disabled", "pending_review"
   config: any;
+  manifest: any;
   created_at: string;
   updated_at: string;
 }
@@ -91,6 +93,33 @@ export interface AdminPluginListResponse {
 export interface AdminPluginUpdateRequest {
   enabled?: boolean;
   config?: any;
+}
+
+export interface PluginPermissionInfo {
+  permission: string;
+  is_granted: boolean;
+  permission_type: 'required' | 'optional';
+  description?: string;
+}
+
+export interface PluginPermissionsResponse {
+  plugin_id: string;
+  permissions: PluginPermissionInfo[];
+}
+
+export interface UpdatePluginPermissionsRequest {
+  permissions: Record<string, boolean>;
+}
+
+export interface PluginInstallRequest {
+  rpk_data: string;
+  permission_grants: Record<string, boolean>;
+}
+
+export interface AdminPluginEnableResponse {
+  plugin: AdminPluginListResponse;
+  new_permissions: string[];
+  requires_permission_review: boolean;
 }
 
 export interface AdminOpenAITestResponse {
