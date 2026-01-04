@@ -1,4 +1,4 @@
-package blog:system;
+package rustpress:system;
 
 interface hooks {
     record post-data {

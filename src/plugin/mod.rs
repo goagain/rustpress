@@ -90,7 +90,10 @@ impl PluginManager {
             }
 
             // Load the plugin
-            match self.registry.load_plugin(plugin_id, &wasm_path, valid_hooks).await
+            match self
+                .registry
+                .load_plugin(plugin_id, &wasm_path, valid_hooks)
+                .await
             {
                 Ok(loaded_plugin) => {
                     // Register the plugin

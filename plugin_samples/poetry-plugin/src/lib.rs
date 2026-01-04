@@ -6,12 +6,12 @@ include!("plugin_world.rs");
 struct PoetryPlugin;
 
 // Implement the generated Guest trait
-impl exports::blog::system::hooks::Guest for PoetryPlugin {
+impl exports::rustpress::system::hooks::Guest for PoetryPlugin {
     fn on_post_published(
-        mut post: exports::blog::system::hooks::PostData,
-    ) -> Result<exports::blog::system::hooks::PostData, String> {
+        mut post: exports::rustpress::system::hooks::PostData,
+    ) -> Result<exports::rustpress::system::hooks::PostData, String> {
         // Log that we're processing a post
-        blog::system::logging::log_info("Processing post for poetry enhancement");
+        rustpress::system::logging::log_info("Processing post for poetry enhancement");
 
         // Get post ID to select different poetry lines
         let post_id = post.id as usize;
@@ -20,14 +20,14 @@ impl exports::blog::system::hooks::Guest for PoetryPlugin {
         let line_index = post_id % SONNET_LINES.len();
         let poetry_line = SONNET_LINES[line_index];
 
-        blog::system::logging::log_debug(&format!("Adding poetry line: {}", poetry_line));
+        rustpress::system::logging::log_debug(&format!("Adding poetry line: {}", poetry_line));
 
         // Modify content - prepend poetry line
         let new_content = format!("> *{}*\n\n{}", poetry_line, post.content);
 
         post.content = new_content;
 
-        blog::system::logging::log_info("Successfully enhanced post with poetry");
+        rustpress::system::logging::log_info("Successfully enhanced post with poetry");
 
         Ok(post)
     }

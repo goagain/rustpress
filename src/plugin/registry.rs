@@ -148,7 +148,9 @@ impl PluginRegistry {
 
         for plugin in plugins {
             if let Some(executor) = self.get_executor(&plugin.plugin_id).await {
-                data = executor.execute_filter_hook(&plugin, hook_name, data).await?;
+                data = executor
+                    .execute_filter_hook(&plugin, hook_name, data)
+                    .await?;
             }
         }
 
@@ -175,7 +177,9 @@ impl PluginRegistry {
 
         for plugin in plugins {
             if let Some(executor) = self.get_executor(&plugin.plugin_id).await {
-                executor.execute_action_hook(&plugin, hook_name, data.clone()).await?;
+                executor
+                    .execute_action_hook(&plugin, hook_name, data.clone())
+                    .await?;
             }
         }
 
