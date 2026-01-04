@@ -8,19 +8,39 @@ use tokio::sync::RwLock;
 /// Plugin registry that manages loaded plugins and their hook mappings
 #[derive(Clone)]
 pub struct PluginRegistry {
-    pub executor: PluginExecutor,
+    executors: Arc<RwLock<HashMap<String, PluginExecutor>>>,
     plugins: Arc<RwLock<HashMap<String, LoadedPlugin>>>,
     hook_to_plugins: Arc<RwLock<HashMap<String, Vec<String>>>>, // hook_name -> plugin_ids
 }
 
 impl PluginRegistry {
     /// Create a new plugin registry
-    pub fn new(executor: PluginExecutor) -> Self {
+    pub fn new() -> Self {
         Self {
-            executor,
+            executors: Arc::new(RwLock::new(HashMap::new())),
             plugins: Arc::new(RwLock::new(HashMap::new())),
             hook_to_plugins: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    /// Get executor for a specific plugin
+    pub async fn get_executor(&self, plugin_id: &str) -> Option<PluginExecutor> {
+        let executors = self.executors.read().await;
+        executors.get(plugin_id).cloned()
+    }
+
+    /// Load a plugin from WASM file
+    pub async fn load_plugin(
+        &self,
+        plugin_id: &str,
+        wasm_path: &std::path::Path,
+        hooks: Vec<String>,
+    ) -> Result<LoadedPlugin, Box<dyn std::error::Error + Send + Sync>> {
+        // Create executor for this plugin
+        let executor = PluginExecutor::new(plugin_id.to_string());
+
+        // Load the plugin using the executor
+        executor.load_plugin(plugin_id, wasm_path, hooks).await
     }
 
     /// Register a plugin with the registry
@@ -29,6 +49,13 @@ impl PluginRegistry {
         plugin: LoadedPlugin,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let plugin_id = plugin.plugin_id.clone();
+
+        // Create executor for this plugin
+        let executor = PluginExecutor::new(plugin_id.clone());
+        {
+            let mut executors = self.executors.write().await;
+            executors.insert(plugin_id.clone(), executor);
+        }
 
         // Add plugin to registry
         {
@@ -49,7 +76,8 @@ impl PluginRegistry {
 
         tracing::info!(
             "✅ Registered plugin '{}' with hooks: {:?}",
-            plugin_id, plugin.registered_hooks
+            plugin_id,
+            plugin.registered_hooks
         );
         Ok(())
     }
@@ -119,10 +147,9 @@ impl PluginRegistry {
         );
 
         for plugin in plugins {
-            data = self
-                .executor
-                .execute_filter_hook(&plugin, hook_name, data)
-                .await?;
+            if let Some(executor) = self.get_executor(&plugin.plugin_id).await {
+                data = executor.execute_filter_hook(&plugin, hook_name, data).await?;
+            }
         }
 
         Ok(data)
@@ -147,9 +174,9 @@ impl PluginRegistry {
         );
 
         for plugin in plugins {
-            self.executor
-                .execute_action_hook(&plugin, hook_name, data.clone())
-                .await?;
+            if let Some(executor) = self.get_executor(&plugin.plugin_id).await {
+                executor.execute_action_hook(&plugin, hook_name, data.clone()).await?;
+            }
         }
 
         Ok(())

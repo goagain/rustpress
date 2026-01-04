@@ -4,7 +4,9 @@ use std::path::Path;
 
 /// Plugin executor that manages WASM plugin execution
 #[derive(Clone)]
-pub struct PluginExecutor;
+pub struct PluginExecutor {
+    plugin_id: String,
+}
 
 /// Loaded plugin instance with its hooks
 #[derive(Clone)]
@@ -14,9 +16,29 @@ pub struct LoadedPlugin {
 }
 
 impl PluginExecutor {
-    /// Create a new plugin executor
-    pub fn new() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        Ok(Self)
+    /// Create a new plugin executor for a specific plugin
+    pub fn new(plugin_id: String) -> Self {
+        Self { plugin_id }
+    }
+
+    /// Log info message with plugin prefix
+    pub fn log_info(&self, message: &str) {
+        tracing::info!("[{}] {}", self.plugin_id, message);
+    }
+
+    /// Log warn message with plugin prefix
+    pub fn log_warn(&self, message: &str) {
+        tracing::warn!("[{}] {}", self.plugin_id, message);
+    }
+
+    /// Log error message with plugin prefix
+    pub fn log_error(&self, message: &str) {
+        tracing::error!("[{}] {}", self.plugin_id, message);
+    }
+
+    /// Log debug message with plugin prefix
+    pub fn log_debug(&self, message: &str) {
+        tracing::debug!("[{}] {}", self.plugin_id, message);
     }
 
     /// Load a plugin from WASM file
@@ -32,7 +54,8 @@ impl PluginExecutor {
         // For now, just simulate loading
         tracing::info!(
             "✅ Successfully loaded plugin '{}' with hooks: {:?}",
-            plugin_id, hooks
+            plugin_id,
+            hooks
         );
 
         Ok(LoadedPlugin {

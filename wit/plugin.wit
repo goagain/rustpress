@@ -14,6 +14,14 @@ interface hooks {
     on-post-published: func(post: post-data) -> result<post-data, string>;
 }
 
+interface logging {
+    log-info: func(message: string);
+    log-warn: func(message: string);
+    log-error: func(message: string);
+    log-debug: func(message: string);
+}
+
 world plugin-world {
+    import logging;
     export hooks;
 }

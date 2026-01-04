@@ -21,8 +21,7 @@ impl PluginManager {
     pub fn new(
         db: Arc<DatabaseConnection>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        let executor = executor::PluginExecutor::new()?;
-        let registry = Arc::new(registry::PluginRegistry::new(executor));
+        let registry = Arc::new(registry::PluginRegistry::new());
 
         Ok(Self { db, registry })
     }
@@ -91,11 +90,7 @@ impl PluginManager {
             }
 
             // Load the plugin
-            match self
-                .registry
-                .executor
-                .load_plugin(plugin_id, &wasm_path, valid_hooks)
-                .await
+            match self.registry.load_plugin(plugin_id, &wasm_path, valid_hooks).await
             {
                 Ok(loaded_plugin) => {
                     // Register the plugin
