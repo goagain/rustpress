@@ -34,7 +34,7 @@ impl PluginManager {
         use crate::entity::plugins;
         use crate::hook_registry::HookRegistry;
 
-        println!("🔄 Loading enabled plugins...");
+        tracing::info!("🔄 Loading enabled plugins...");
 
         // Query enabled plugins from database
         let enabled_plugins = plugins::Entity::find()
@@ -44,11 +44,11 @@ impl PluginManager {
             .await
             .map_err(|e| format!("Failed to query plugins: {}", e))?;
 
-        println!("📦 Found {} enabled plugins", enabled_plugins.len());
+        tracing::info!("📦 Found {} enabled plugins", enabled_plugins.len());
 
         for plugin_record in enabled_plugins {
             let plugin_id = &plugin_record.name;
-            println!(
+            tracing::info!(
                 "🔄 Loading plugin: {} (ID: {})",
                 plugin_record.description.as_deref().unwrap_or("Unknown"),
                 plugin_record.id
@@ -62,7 +62,7 @@ impl PluginManager {
                     })?
                 }
                 None => {
-                    println!("⚠️ Plugin {} has no manifest, skipping", plugin_id);
+                    tracing::warn!("⚠️ Plugin {} has no manifest, skipping", plugin_id);
                     continue;
                 }
             };
@@ -71,7 +71,7 @@ impl PluginManager {
             let valid_hooks = match self.validate_plugin_hooks(&manifest) {
                 Ok(hooks) => hooks,
                 Err(e) => {
-                    println!("❌ Plugin {} has invalid hooks: {}, skipping", plugin_id, e);
+                    tracing::error!("❌ Plugin {} has invalid hooks: {}, skipping", plugin_id, e);
                     continue;
                 }
             };
@@ -82,7 +82,7 @@ impl PluginManager {
                 .join("plugin.wasm");
 
             if !wasm_path.exists() {
-                println!(
+                tracing::warn!(
                     "⚠️ WASM file not found for plugin {} at {}, skipping",
                     plugin_id,
                     wasm_path.display()
@@ -100,22 +100,22 @@ impl PluginManager {
                 Ok(loaded_plugin) => {
                     // Register the plugin
                     if let Err(e) = self.registry.register_plugin(loaded_plugin).await {
-                        println!("❌ Failed to register plugin {}: {}", plugin_id, e);
+                        tracing::error!("❌ Failed to register plugin {}: {}", plugin_id, e);
                         continue;
                     }
-                    println!(
+                    tracing::info!(
                         "✅ Successfully loaded and registered plugin: {}",
                         plugin_id
                     );
                 }
                 Err(e) => {
-                    println!("❌ Failed to load plugin {}: {}", plugin_id, e);
+                    tracing::error!("❌ Failed to load plugin {}: {}", plugin_id, e);
                     continue;
                 }
             }
         }
 
-        println!("✅ Plugin system initialized");
+        tracing::info!("✅ Plugin system initialized");
         Ok(())
     }
 
@@ -390,18 +390,18 @@ impl PluginHostApi {
     }
 
     pub fn log_error(&self, message: &str) {
-        println!("[{}] ERROR: {}", self.plugin_id, message);
+        tracing::error!("[{}] {}", self.plugin_id, message);
     }
 
     pub fn log_warn(&self, message: &str) {
-        println!("[{}] WARN: {}", self.plugin_id, message);
+        tracing::warn!("[{}] {}", self.plugin_id, message);
     }
 
     pub fn log_info(&self, message: &str) {
-        println!("[{}] INFO: {}", self.plugin_id, message);
+        tracing::info!("[{}] {}", self.plugin_id, message);
     }
 
     pub fn log_debug(&self, message: &str) {
-        println!("[{}] DEBUG: {}", self.plugin_id, message);
+        tracing::debug!("[{}] {}", self.plugin_id, message);
     }
 }

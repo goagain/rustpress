@@ -26,11 +26,11 @@ impl PluginExecutor {
         _wasm_path: &Path,
         hooks: Vec<String>,
     ) -> Result<LoadedPlugin, Box<dyn std::error::Error + Send + Sync>> {
-        println!("🔄 Loading plugin '{}' (simulated)", plugin_id);
+        tracing::info!("🔄 Loading plugin '{}' (simulated)", plugin_id);
 
         // TODO: Implement actual WASM loading
         // For now, just simulate loading
-        println!(
+        tracing::info!(
             "✅ Successfully loaded plugin '{}' with hooks: {:?}",
             plugin_id, hooks
         );
@@ -51,7 +51,7 @@ impl PluginExecutor {
         match hook_name {
             "filter_post_published" => self.execute_filter_post_published(plugin, data).await,
             _ => {
-                println!("⚠️ Unknown filter hook: {}", hook_name);
+                tracing::warn!("⚠️ Unknown filter hook: {}", hook_name);
                 Ok(data)
             }
         }
@@ -67,7 +67,7 @@ impl PluginExecutor {
         match hook_name {
             "action_post_published" => self.execute_action_post_published(plugin, data).await,
             _ => {
-                println!("⚠️ Unknown action hook: {}", hook_name);
+                tracing::warn!("⚠️ Unknown action hook: {}", hook_name);
                 Ok(())
             }
         }
@@ -79,11 +79,11 @@ impl PluginExecutor {
         plugin: &LoadedPlugin,
         mut data: serde_json::Value,
     ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
-        println!(
+        tracing::info!(
             "🔄 Executing filter_post_published for plugin '{}'",
             plugin.plugin_id
         );
-        println!(
+        tracing::debug!(
             "📝 Original post content: {}",
             data["content"].as_str().unwrap_or("")
         );
@@ -94,14 +94,14 @@ impl PluginExecutor {
             let poetry_line = "> *Shall I compare thee to a summer's day?*\n\n";
             let new_content = format!("{}{}", poetry_line, content);
             data["content"] = serde_json::Value::String(new_content);
-            println!("✨ Added poetry to post content");
+            tracing::debug!("✨ Added poetry to post content");
         }
 
-        println!(
+        tracing::debug!(
             "📝 Modified post content: {}",
             data["content"].as_str().unwrap_or("")
         );
-        println!(
+        tracing::info!(
             "✅ Plugin '{}' successfully processed post",
             plugin.plugin_id
         );
@@ -114,12 +114,12 @@ impl PluginExecutor {
         plugin: &LoadedPlugin,
         _data: serde_json::Value,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        println!(
+        tracing::info!(
             "🔄 Executing action_post_published for plugin '{}'",
             plugin.plugin_id
         );
         // Action hooks typically don't return data, just perform side effects
-        println!("✅ Plugin '{}' completed action", plugin.plugin_id);
+        tracing::info!("✅ Plugin '{}' completed action", plugin.plugin_id);
         Ok(())
     }
 }

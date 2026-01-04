@@ -11,7 +11,7 @@ impl exports::blog::system::hooks::Guest for PoetryPlugin {
         mut post: exports::blog::system::hooks::PostData,
     ) -> Result<exports::blog::system::hooks::PostData, String> {
         // Log that we're processing a post
-        println!("Processing post for poetry enhancement");
+        tracing::info!("Processing post for poetry enhancement");
 
         // Get post ID to select different poetry lines
         let post_id = post.id as usize;
@@ -20,14 +20,14 @@ impl exports::blog::system::hooks::Guest for PoetryPlugin {
         let line_index = post_id % SONNET_LINES.len();
         let poetry_line = SONNET_LINES[line_index];
 
-        println!("Adding poetry line: {}", poetry_line);
+        tracing::debug!("Adding poetry line: {}", poetry_line);
 
         // Modify content - prepend poetry line
         let new_content = format!("> *{}*\n\n{}", poetry_line, post.content);
 
         post.content = new_content;
 
-        println!("Successfully enhanced post with poetry");
+        tracing::info!("Successfully enhanced post with poetry");
 
         Ok(post)
     }

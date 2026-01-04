@@ -47,7 +47,7 @@ impl PluginRegistry {
             }
         }
 
-        println!(
+        tracing::info!(
             "✅ Registered plugin '{}' with hooks: {:?}",
             plugin_id, plugin.registered_hooks
         );
@@ -78,7 +78,7 @@ impl PluginRegistry {
                 }
             }
 
-            println!("✅ Unregistered plugin '{}'", plugin_id);
+            tracing::info!("✅ Unregistered plugin '{}'", plugin_id);
             Ok(())
         } else {
             Err(format!("Plugin '{}' not found", plugin_id).into())
@@ -112,7 +112,7 @@ impl PluginRegistry {
             return Ok(data);
         }
 
-        println!(
+        tracing::info!(
             "🔄 Executing filter hook '{}' on {} plugins",
             hook_name,
             plugins.len()
@@ -140,7 +140,7 @@ impl PluginRegistry {
             return Ok(());
         }
 
-        println!(
+        tracing::info!(
             "🔄 Executing action hook '{}' on {} plugins",
             hook_name,
             plugins.len()
