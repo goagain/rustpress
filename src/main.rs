@@ -2,7 +2,10 @@ mod api;
 mod auth;
 mod dto;
 mod entity;
+mod hook_registry;
+mod plugin;
 mod repository;
+mod rpk;
 mod seed;
 mod storage;
 
@@ -71,6 +74,15 @@ async fn main() {
         user_repository,
     ));
 
+    // Initialize plugin manager
+    let plugin_manager = Arc::new(plugin::PluginManager::new(Arc::new(db.clone())));
+    plugin_manager
+        .load_enabled_plugins()
+        .await
+        .expect("Failed to load plugins");
+
+    tracing::info!("✅ Plugin system initialized");
+    
     // Initialize storage backend (local filesystem for now, can be switched to S3 later)
     let storage_dir = std::env::var("STORAGE_DIR").unwrap_or_else(|_| "uploads".to_string());
     let storage_base_url = std::env::var("STORAGE_BASE_URL")
@@ -92,7 +104,7 @@ async fn main() {
     tracing::info!("   Base URL: {}", storage_base_url);
 
     // Create routes (API Controller layer)
-    let app = create_router(app_state, storage, db);
+    let app = create_router(app_state, storage, db, plugin_manager);
 
     // Start server
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")

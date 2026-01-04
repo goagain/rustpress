@@ -29,9 +29,10 @@ pub fn create_router<
     app_state: Arc<AppState<PR, UR>>,
     storage: Arc<SB>,
     db: sea_orm::DatabaseConnection,
+    plugin_manager: Arc<crate::plugin::PluginManager>,
 ) -> Router {
-    // Create extended state that includes storage and database
-    let state = Arc::new(ExtendedAppState::new(app_state, storage, db));
+    // Create extended state that includes storage, database, and plugin manager
+    let state = Arc::new(ExtendedAppState::new(app_state, storage, db, plugin_manager));
 
     // Public routes (no authentication required)
     let public_routes = Router::new()
