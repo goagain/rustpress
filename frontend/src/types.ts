@@ -56,7 +56,7 @@ export interface User {
 
 export interface CreatePostRequest {
   title: string;
-  category: string;
+  category?: string;
   content: string;
   author_id: number;
 }

@@ -146,11 +146,12 @@ pub async fn create_post<
     // User must be authenticated (already checked by middleware)
 
     // Create initial post data for filtering
+    let category = payload.category.as_deref().unwrap_or("uncategorized");
     let initial_post_data = serde_json::json!({
         "id": 0, // Will be set after creation
         "title": payload.title,
         "content": payload.content,
-        "category": payload.category,
+        "category": category,
         "author_id": payload.author_id,
         "created_at": chrono::Utc::now(),
         "updated_at": chrono::Utc::now()
@@ -173,14 +174,14 @@ pub async fn create_post<
         .to_string();
     let filtered_category = filtered_post_data["category"]
         .as_str()
-        .unwrap_or(&payload.category)
+        .unwrap_or_else(|| payload.category.as_deref().unwrap_or("uncategorized"))
         .to_string();
 
     // Create post with filtered data
     let filtered_payload = CreatePostRequest {
         title: filtered_title,
         content: filtered_content,
-        category: filtered_category,
+        category: Some(filtered_category),
         author_id: payload.author_id,
     };
 

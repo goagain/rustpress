@@ -63,6 +63,13 @@ async fn main() {
     // Initialize root user
     let root_user_id = init_root_user(&user_repository).await;
 
+    // Print root password for testing (only if it was auto-generated)
+    if let Ok(password) = std::env::var("ROOT_PASSWORD") {
+        tracing::info!("🔑 Root user password (from ROOT_PASSWORD env var): {}", password);
+    } else if root_user_id.is_some() {
+        tracing::info!("🔑 Root user password was auto-generated. Set ROOT_PASSWORD env var to override.");
+    }
+
     // Initialize sample post (if no posts exist and root user exists)
     if let Some(user_id) = root_user_id {
         init_sample_post(&post_repository, user_id).await;
@@ -75,7 +82,8 @@ async fn main() {
     ));
 
     // Initialize plugin manager
-    let plugin_manager = Arc::new(plugin::PluginManager::new(Arc::new(db.clone())));
+    let plugin_manager = Arc::new(plugin::PluginManager::new(Arc::new(db.clone()))
+        .expect("Failed to create plugin manager"));
     plugin_manager
         .load_enabled_plugins()
         .await
@@ -238,7 +246,7 @@ async fn init_sample_post<PR: PostRepository>(post_repository: &PR, author_id: i
     let create_request = CreatePostRequest {
         title: sample_post.title,
         content: sample_post.content,
-        category: sample_post.category,
+        category: Some(sample_post.category),
         author_id,
     };
 

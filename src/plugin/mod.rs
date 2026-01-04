@@ -1,9 +1,10 @@
 //! Plugin system implementation
 
-use crate::dto::plugin::{PluginExecutionContext, PluginExecutionResult};
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, DeleteResult, EntityTrait, QueryFilter,
-};
+pub mod executor;
+pub mod registry;
+
+use crate::dto::plugin::PluginExecutionResult;
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use std::sync::Arc;
 
 /// Plugin manager that handles plugin lifecycle and execution
@@ -11,12 +12,19 @@ use std::sync::Arc;
 pub struct PluginManager {
     /// Database connection
     db: Arc<DatabaseConnection>,
+    /// Plugin registry for loaded plugins
+    registry: Arc<registry::PluginRegistry>,
 }
 
 impl PluginManager {
     /// Create a new plugin manager
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
+    pub fn new(
+        db: Arc<DatabaseConnection>,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        let executor = executor::PluginExecutor::new()?;
+        let registry = Arc::new(registry::PluginRegistry::new(executor));
+
+        Ok(Self { db, registry })
     }
 
     /// Load all enabled plugins from database
@@ -24,6 +32,7 @@ impl PluginManager {
         &self,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         use crate::entity::plugins;
+        use crate::hook_registry::HookRegistry;
 
         println!("🔄 Loading enabled plugins...");
 
@@ -37,66 +46,149 @@ impl PluginManager {
 
         println!("📦 Found {} enabled plugins", enabled_plugins.len());
 
-        for plugin in enabled_plugins {
-            println!("✅ Loaded plugin: {} (ID: {})", plugin.name, plugin.id);
+        for plugin_record in enabled_plugins {
+            let plugin_id = &plugin_record.name;
+            println!(
+                "🔄 Loading plugin: {} (ID: {})",
+                plugin_record.description.as_deref().unwrap_or("Unknown"),
+                plugin_record.id
+            );
 
-            // TODO: Load WASM modules and register hooks
-            // For now, just log that the plugin would be loaded
+            // Get plugin manifest to extract hooks
+            let manifest: crate::dto::plugin::PluginManifest = match &plugin_record.manifest {
+                Some(manifest_json) => {
+                    serde_json::from_value(manifest_json.clone()).map_err(|e| {
+                        format!("Failed to parse manifest for plugin {}: {}", plugin_id, e)
+                    })?
+                }
+                None => {
+                    println!("⚠️ Plugin {} has no manifest, skipping", plugin_id);
+                    continue;
+                }
+            };
+
+            // Validate hooks against the hook registry
+            let valid_hooks = match self.validate_plugin_hooks(&manifest) {
+                Ok(hooks) => hooks,
+                Err(e) => {
+                    println!("❌ Plugin {} has invalid hooks: {}, skipping", plugin_id, e);
+                    continue;
+                }
+            };
+
+            // Try to load the WASM file from cache
+            let wasm_path = std::path::PathBuf::from("./plugin_cache")
+                .join(plugin_id)
+                .join("plugin.wasm");
+
+            if !wasm_path.exists() {
+                println!(
+                    "⚠️ WASM file not found for plugin {} at {}, skipping",
+                    plugin_id,
+                    wasm_path.display()
+                );
+                continue;
+            }
+
+            // Load the plugin
+            match self
+                .registry
+                .executor
+                .load_plugin(plugin_id, &wasm_path, valid_hooks)
+                .await
+            {
+                Ok(loaded_plugin) => {
+                    // Register the plugin
+                    if let Err(e) = self.registry.register_plugin(loaded_plugin).await {
+                        println!("❌ Failed to register plugin {}: {}", plugin_id, e);
+                        continue;
+                    }
+                    println!(
+                        "✅ Successfully loaded and registered plugin: {}",
+                        plugin_id
+                    );
+                }
+                Err(e) => {
+                    println!("❌ Failed to load plugin {}: {}", plugin_id, e);
+                    continue;
+                }
+            }
         }
 
         println!("✅ Plugin system initialized");
         Ok(())
     }
 
-    /// Execute a hook for a specific plugin
-    pub async fn execute_plugin_hook(
+    /// Validate plugin hooks against the hook registry
+    fn validate_plugin_hooks(
         &self,
-        _plugin_id: &str,
-        _context: PluginExecutionContext,
-    ) -> PluginExecutionResult {
-        // Mock implementation
-        PluginExecutionResult {
-            success: true,
-            data: Some(serde_json::json!({
-                "content": "> *Shall I compare thee to a summer's day?*\n\nPlugin executed successfully!"
-            })),
-            error: None,
+        manifest: &crate::dto::plugin::PluginManifest,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
+        use crate::hook_registry::HookRegistry;
+        let mut valid_hooks = Vec::new();
+
+        for hook_name in &manifest.hooks.registered {
+            if !HookRegistry::is_valid_hook(hook_name) {
+                return Err(format!("Unknown hook: {}", hook_name).into());
+            }
+            valid_hooks.push(hook_name.clone());
         }
+
+        Ok(valid_hooks)
     }
 
     /// Execute a filter hook
     pub async fn execute_filter_hook(
         &self,
-        _hook: crate::dto::plugin::PluginHook,
+        hook: crate::dto::plugin::PluginHook,
         data: serde_json::Value,
     ) -> (serde_json::Value, Vec<PluginExecutionResult>) {
-        // Mock implementation
-        (
-            data,
-            vec![PluginExecutionResult {
-                success: true,
-                data: Some(serde_json::json!({
-                    "content": "> *Shall I compare thee to a summer's day?*\n\nPlugin executed successfully!"
-                })),
-                error: None,
-            }],
-        )
+        let hook_name = hook.to_string();
+
+        match self
+            .registry
+            .execute_filter_hook(&hook_name, data.clone())
+            .await
+        {
+            Ok(filtered_data) => (
+                filtered_data,
+                vec![PluginExecutionResult {
+                    success: true,
+                    data: None,
+                    error: None,
+                }],
+            ),
+            Err(e) => (
+                data,
+                vec![PluginExecutionResult {
+                    success: false,
+                    data: None,
+                    error: Some(e.to_string()),
+                }],
+            ),
+        }
     }
 
     /// Execute an action hook
     pub async fn execute_action_hook(
         &self,
-        _hook: crate::dto::plugin::PluginHook,
-        _data: serde_json::Value,
+        hook: crate::dto::plugin::PluginHook,
+        data: serde_json::Value,
     ) -> Vec<PluginExecutionResult> {
-        // Mock implementation
-        vec![PluginExecutionResult {
-            success: true,
-            data: Some(serde_json::json!({
-                "content": "> *Shall I compare thee to a summer's day?*\n\nPlugin executed successfully!"
-            })),
-            error: None,
-        }]
+        let hook_name = hook.to_string();
+
+        match self.registry.execute_action_hook(&hook_name, data).await {
+            Ok(()) => vec![PluginExecutionResult {
+                success: true,
+                data: None,
+                error: None,
+            }],
+            Err(e) => vec![PluginExecutionResult {
+                success: false,
+                data: None,
+                error: Some(e.to_string()),
+            }],
+        }
     }
 
     /// Install a plugin

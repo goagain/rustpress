@@ -37,7 +37,7 @@ impl HookRegistry {
             "filter_post_published".into(),
             HookDef {
                 name: "filter_post_published",
-                required_perm: Some("post:read_write"), // Must be able to write posts to modify
+                required_perm: Some("post:write"), // Must be able to write posts to modify
                 description: "Allows modification of post data before publishing",
             },
         );

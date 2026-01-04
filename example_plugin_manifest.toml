@@ -14,7 +14,7 @@ permissions = [
 [optional_permissions]
 "ai:chat" = "General AI chat capabilities"
 "post:read" = "Read existing posts for content analysis"
-"post:read_write" = "Read and write posts"
+"post:write" = "Create and modify posts"
 
 # Hooks this plugin registers
 hooks = [

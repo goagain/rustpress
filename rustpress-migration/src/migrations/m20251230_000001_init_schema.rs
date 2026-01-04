@@ -126,12 +126,8 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(Posts::Title).string().not_null())
                     .col(ColumnDef::new(Posts::Content).text().not_null())
-                    .col(ColumnDef::new(Posts::Category).string().not_null())
-                    .col(
-                        ColumnDef::new(Posts::AuthorId)
-                            .big_integer()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(Posts::Category).string().null())
+                    .col(ColumnDef::new(Posts::AuthorId).big_integer().not_null())
                     .col(
                         ColumnDef::new(Posts::CreatedAt)
                             .timestamp_with_time_zone()
@@ -241,11 +237,7 @@ impl MigrationTrait for Migration {
 
         // Drop foreign key constraints for posts table
         manager
-            .drop_foreign_key(
-                ForeignKey::drop()
-                    .name("fk_posts_author_id")
-                    .to_owned(),
-            )
+            .drop_foreign_key(ForeignKey::drop().name("fk_posts_author_id").to_owned())
             .await?;
 
         // Drop posts table
@@ -311,4 +303,3 @@ enum Posts {
     ArchivedAt,
     DeletedAt,
 }
-

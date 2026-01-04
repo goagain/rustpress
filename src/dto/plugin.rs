@@ -58,6 +58,20 @@ pub enum PluginHook {
     FilterAuthenticate,
 }
 
+impl std::fmt::Display for PluginHook {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            PluginHook::ActionPostPublished => "action_post_published",
+            PluginHook::FilterPostPublished => "filter_post_published",
+            PluginHook::ActionUserCreated => "action_user_created",
+            PluginHook::FilterUserCreated => "filter_user_created",
+            PluginHook::ActionUserLogin => "action_user_login",
+            PluginHook::FilterAuthenticate => "filter_authenticate",
+        };
+        write!(f, "{}", name)
+    }
+}
+
 /// Plugin manifest structure (TOML format)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginManifest {

@@ -23,7 +23,8 @@ pub struct Post {
 pub struct CreatePostRequest {
     pub title: String,
     pub content: String,
-    pub category: String,
+    #[serde(default)]
+    pub category: Option<String>,
     pub author_id: i64,
 }
 
