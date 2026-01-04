@@ -1,11 +1,13 @@
 pub mod admin_controller;
 pub mod openai_controller;
+pub mod plugin_controller;
 pub mod post_controller;
 pub mod settings_helper;
 pub mod user_controller;
 
 pub use admin_controller::*;
 pub use openai_controller::*;
+pub use plugin_controller::*;
 pub use post_controller::*;
 pub use user_controller::*;
 
@@ -51,9 +53,30 @@ pub fn create_admin_router<
         .route("/posts/:id", delete(admin_delete_post::<PR, UR, SB>))
         // Plugin management
         // GET /api/admin/plugins - Get all plugins
+        // POST /api/admin/plugins - Install new plugin
+        // POST /api/admin/plugins/upload - Upload RPK file
         // PUT /api/admin/plugins/:id - Update plugin status
-        .route("/plugins", get(get_all_plugins::<PR, UR, SB>))
-        .route("/plugins/:id", put(update_plugin::<PR, UR, SB>))
+        // DELETE /api/admin/plugins/:id - Uninstall plugin completely
+        // GET /api/admin/plugins/:id/permissions - Get plugin permissions
+        // PUT /api/admin/plugins/:id/permissions - Update plugin permissions
+        // POST /api/admin/plugins/:id/review-permissions - Approve pending permissions
+        .route(
+            "/plugins",
+            get(get_all_plugins::<PR, UR, SB>).post(install_plugin::<PR, UR, SB>),
+        )
+        .route("/plugins/upload", post(upload_plugin::<PR, UR, SB>))
+        .route(
+            "/plugins/:id",
+            put(update_plugin::<PR, UR, SB>).delete(uninstall_plugin::<PR, UR, SB>),
+        )
+        .route(
+            "/plugins/:id/permissions",
+            get(get_plugin_permissions::<PR, UR, SB>).put(update_plugin_permissions::<PR, UR, SB>),
+        )
+        .route(
+            "/plugins/:id/review-permissions",
+            post(review_plugin_permissions::<PR, UR, SB>),
+        )
         // OpenAI API key management
         // GET /api/admin/openai/keys - Get all API keys
         // POST /api/admin/openai/keys - Create new API key

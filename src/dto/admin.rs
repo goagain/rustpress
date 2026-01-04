@@ -75,7 +75,9 @@ pub struct AdminPluginListResponse {
     pub description: Option<String>,
     pub version: String,
     pub enabled: bool,
+    pub status: String, // "enabled", "disabled", "pending_review"
     pub config: Option<JsonValue>,
+    pub manifest: Option<JsonValue>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -84,7 +86,16 @@ pub struct AdminPluginListResponse {
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct AdminPluginUpdateRequest {
     pub enabled: Option<bool>,
+    pub status: Option<String>,
     pub config: Option<JsonValue>,
+}
+
+/// Admin plugin enable response
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AdminPluginEnableResponse {
+    pub plugin: AdminPluginListResponse,
+    pub new_permissions: Vec<String>,
+    pub requires_permission_review: bool,
 }
 
 /// Admin OpenAI API test response

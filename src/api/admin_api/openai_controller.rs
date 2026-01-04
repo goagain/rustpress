@@ -100,7 +100,7 @@ pub async fn create_openai_key<
 
     // If this is set as default, unset other defaults
     if payload.is_default.unwrap_or(false) {
-        let mut all_keys = openai_api_keys::Entity::find()
+        let all_keys = openai_api_keys::Entity::find()
             .all(db.as_ref())
             .await
             .map_err(|e| {
@@ -108,7 +108,7 @@ pub async fn create_openai_key<
                 StatusCode::INTERNAL_SERVER_ERROR
             })?;
 
-        for mut key in all_keys {
+        for key in all_keys {
             let mut active_model: openai_api_keys::ActiveModel = key.into();
             active_model.is_default = Set(false);
             active_model.update(db.as_ref()).await.map_err(|e| {
@@ -186,7 +186,7 @@ pub async fn update_openai_key<
 
     // If setting as default, unset other defaults
     if payload.is_default == Some(true) {
-        let mut all_keys = openai_api_keys::Entity::find()
+        let all_keys = openai_api_keys::Entity::find()
             .filter(openai_api_keys::Column::Id.ne(id))
             .all(db.as_ref())
             .await
@@ -195,7 +195,7 @@ pub async fn update_openai_key<
                 StatusCode::INTERNAL_SERVER_ERROR
             })?;
 
-        for mut other_key in all_keys {
+        for other_key in all_keys {
             let mut active_model: openai_api_keys::ActiveModel = other_key.into();
             active_model.is_default = Set(false);
             active_model.update(db.as_ref()).await.map_err(|e| {
