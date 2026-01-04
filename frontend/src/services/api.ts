@@ -167,7 +167,7 @@ export const api = {
     };
   },
 
-  async createPost(post: { title: string; category: string; content: string; author_id: number }): Promise<PostResponse> {
+  async createPost(post: { title: string; category?: string; content: string; author_id: number }): Promise<PostResponse> {
     const response = await authenticatedFetch(`${API_BASE_URL}/posts`, {
       method: 'POST',
       body: JSON.stringify(post),

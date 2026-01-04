@@ -10,6 +10,35 @@ import { PostVersions } from './PostVersions';
 import type { PostResponse } from '../../types';
 import 'highlight.js/styles/github.css';
 
+// Generate color for category labels (GitHub-style)
+const getCategoryColor = (category: string): { bg: string; text: string } => {
+  // Simple hash function to generate consistent colors
+  let hash = 0;
+  for (let i = 0; i < category.length; i++) {
+    hash = category.charCodeAt(i) + ((hash << 5) - hash);
+  }
+
+  // Predefined color palette (GitHub-style)
+  const colors = [
+    { bg: 'bg-blue-100', text: 'text-blue-700' },
+    { bg: 'bg-green-100', text: 'text-green-700' },
+    { bg: 'bg-yellow-100', text: 'text-yellow-700' },
+    { bg: 'bg-red-100', text: 'text-red-700' },
+    { bg: 'bg-purple-100', text: 'text-purple-700' },
+    { bg: 'bg-pink-100', text: 'text-pink-700' },
+    { bg: 'bg-indigo-100', text: 'text-indigo-700' },
+    { bg: 'bg-gray-100', text: 'text-gray-700' },
+    { bg: 'bg-emerald-100', text: 'text-emerald-700' },
+    { bg: 'bg-cyan-100', text: 'text-cyan-700' },
+    { bg: 'bg-orange-100', text: 'text-orange-700' },
+    { bg: 'bg-teal-100', text: 'text-teal-700' },
+  ];
+
+  // Use absolute value and modulo to get consistent color
+  const index = Math.abs(hash) % colors.length;
+  return colors[index];
+};
+
 interface PostDetailProps {
   postId: string;
   onBack?: () => void;
@@ -139,7 +168,7 @@ export function PostDetail({ postId, onBack, onEdit }: PostDetailProps) {
 
       <header className="mb-8">
         <div className="flex items-center gap-3 mb-4">
-          <span className="inline-flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-700 text-sm font-medium rounded-full">
+          <span className={`inline-flex items-center gap-1 px-3 py-1 text-sm font-medium rounded-full ${getCategoryColor(post.category).bg} ${getCategoryColor(post.category).text}`}>
             <Tag size={14} />
             {post.category}
           </span>

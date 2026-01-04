@@ -66,9 +66,14 @@ async fn main() {
 
     // Print root password for testing (only if it was auto-generated)
     if let Ok(password) = std::env::var("ROOT_PASSWORD") {
-        tracing::info!("🔑 Root user password (from ROOT_PASSWORD env var): {}", password);
+        tracing::info!(
+            "🔑 Root user password (from ROOT_PASSWORD env var): {}",
+            password
+        );
     } else if root_user_id.is_some() {
-        tracing::info!("🔑 Root user password was auto-generated. Set ROOT_PASSWORD env var to override.");
+        tracing::info!(
+            "🔑 Root user password was auto-generated. Set ROOT_PASSWORD env var to override."
+        );
     }
 
     // Initialize sample post (if no posts exist and root user exists)

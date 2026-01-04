@@ -142,8 +142,8 @@ export function CreatePost({ postId, initialPost, onSuccess, onCancel }: CreateP
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!title.trim() || !category.trim() || !content.trim()) {
-      setError('Please fill in all fields');
+    if (!title.trim() || !content.trim()) {
+      setError('Please fill in title and content');
       return;
     }
 
@@ -185,7 +185,7 @@ export function CreatePost({ postId, initialPost, onSuccess, onCancel }: CreateP
         
         await api.createPost({
           title: title.trim(),
-          category: category.trim(),
+          category: category.trim() || undefined,
           content: content.trim(),
           author_id: authorId,
         });
@@ -420,16 +420,15 @@ export function CreatePost({ postId, initialPost, onSuccess, onCancel }: CreateP
         {/* Category */}
         <div>
           <label htmlFor="category" className="block text-sm font-medium text-slate-700 mb-2">
-            Category *
+            Category
           </label>
           <input
             id="category"
             type="text"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            required
             className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-colors"
-            placeholder="e.g., Announcement, Tutorial, News"
+            placeholder="e.g., Announcement, Tutorial, News (optional)"
             disabled={loading}
           />
         </div>
@@ -554,7 +553,7 @@ export function CreatePost({ postId, initialPost, onSuccess, onCancel }: CreateP
         <div className="flex items-center gap-4 pt-4 border-t border-slate-200">
           <button
             type="submit"
-            disabled={loading || !title.trim() || !category.trim() || !content.trim()}
+            disabled={loading || !title.trim() || !content.trim()}
             className="flex items-center gap-2 px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
