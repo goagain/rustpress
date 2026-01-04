@@ -93,10 +93,12 @@ export function PostList({ onPostSelect }: PostListProps) {
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 mb-3">
-                <span className={`inline-flex items-center gap-1 px-3 py-1 text-sm font-medium rounded-full ${getCategoryColor(post.category).bg} ${getCategoryColor(post.category).text}`}>
-                  <Tag size={14} />
-                  {post.category}
-                </span>
+                {post.category && (
+                  <span className={`inline-flex items-center gap-1 px-3 py-1 text-sm font-medium rounded-full ${getCategoryColor(post.category).bg} ${getCategoryColor(post.category).text}`}>
+                    <Tag size={14} />
+                    {post.category}
+                  </span>
+                )}
                 <span className="inline-flex items-center gap-1 text-sm text-slate-500">
                   <Calendar size={14} />
                   {new Date(post.created_at).toLocaleDateString('en-US', {

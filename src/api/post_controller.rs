@@ -146,7 +146,7 @@ pub async fn create_post<
     // User must be authenticated (already checked by middleware)
 
     // Create initial post data for filtering
-    let category = payload.category.as_deref().unwrap_or("uncategorized");
+    let category = payload.category.as_deref().unwrap_or("");
     let initial_post_data = serde_json::json!({
         "id": 0, // Will be set after creation
         "title": payload.title,
@@ -174,7 +174,7 @@ pub async fn create_post<
         .to_string();
     let filtered_category = filtered_post_data["category"]
         .as_str()
-        .unwrap_or_else(|| payload.category.as_deref().unwrap_or("uncategorized"))
+        .unwrap_or_else(|| payload.category.as_deref().unwrap_or(""))
         .to_string();
 
     // Create post with filtered data
@@ -271,7 +271,7 @@ pub async fn update_post<
         id: existing_post.id,
         title: payload.title.unwrap_or(existing_post.title),
         content: payload.content.unwrap_or(existing_post.content),
-        category: payload.category.unwrap_or(existing_post.category),
+        category: payload.category.or(existing_post.category),
         author_id: existing_post.author_id,
         created_at: existing_post.created_at,
         updated_at: existing_post.updated_at, // Placeholder value, actually updated automatically by ActiveModelBehavior

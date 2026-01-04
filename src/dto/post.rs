@@ -1,8 +1,8 @@
+use crate::entity::{post_drafts, post_versions, posts};
 use chrono::{DateTime, Utc};
 use sea_orm::prelude::DateTimeWithTimeZone;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use crate::entity::{posts, post_versions, post_drafts};
 
 /// Post business entity (DTO)
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -10,7 +10,7 @@ pub struct Post {
     pub id: i64,
     pub title: String,
     pub content: String,
-    pub category: String,
+    pub category: Option<String>,
     pub author_id: i64,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
@@ -45,7 +45,7 @@ pub struct PostResponse {
     pub id: i64,
     pub title: String,
     pub content: String,
-    pub category: String,
+    pub category: Option<String>,
     pub author_id: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

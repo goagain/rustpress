@@ -167,10 +167,16 @@ export const api = {
     };
   },
 
-  async createPost(post: { title: string; category?: string; content: string; author_id: number }): Promise<PostResponse> {
+  async createPost(post: { title: string; category?: string | null; content: string; author_id: number }): Promise<PostResponse> {
+    // Remove null category from the request body
+    const requestBody = { ...post };
+    if (requestBody.category === null || requestBody.category === '') {
+      delete requestBody.category;
+    }
+
     const response = await authenticatedFetch(`${API_BASE_URL}/posts`, {
       method: 'POST',
-      body: JSON.stringify(post),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {

@@ -261,7 +261,7 @@ async fn init_sample_post<PR: PostRepository>(post_repository: &PR, author_id: i
         Ok(post) => {
             tracing::info!("✅ Sample post created successfully");
             tracing::info!("   Title: {}", post.title);
-            tracing::info!("   Category: {}", post.category);
+            tracing::info!("   Category: {:?}", post.category);
             tracing::info!("   Post ID: {}", post.id);
         }
         Err(e) => {

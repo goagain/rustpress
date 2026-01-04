@@ -81,7 +81,7 @@ export function CreatePost({ postId, initialPost, onSuccess, onCancel }: CreateP
       await api.saveDraft({
         post_id: postId ? parseInt(postId, 10) : null,
         title: title.trim() || 'Untitled',
-        category: category.trim() || 'Uncategorized',
+        category: category.trim() || '',
         content: content.trim() || '',
       });
       setLastSavedContent(currentContent);
@@ -185,7 +185,7 @@ export function CreatePost({ postId, initialPost, onSuccess, onCancel }: CreateP
         
         await api.createPost({
           title: title.trim(),
-          category: category.trim() || undefined,
+          category: category.trim() || null,
           content: content.trim(),
           author_id: authorId,
         });

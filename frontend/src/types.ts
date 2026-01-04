@@ -2,7 +2,7 @@ export interface Post {
   id: string;
   title: string;
   content: string;
-  category: string;
+  category: string | null;
   author_id: number;
   created_at: string;
   updated_at: string;
@@ -12,17 +12,7 @@ export interface PostResponse {
   id: string;
   title: string;
   content: string;
-  category: string;
-  author_id: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Post {
-  id: string;
-  title: string;
-  content: string;
-  category: string;
+  category: string | null;
   author_id: number;
   created_at: string;
   updated_at: string;
