@@ -179,6 +179,12 @@ pub async fn get_settings_tabs<
                 },
             ],
         },
+        SettingsTab {
+            id: "openai".to_string(),
+            label: "OpenAI".to_string(),
+            description: Some("OpenAI API key management and settings".to_string()),
+            items: vec![], // OpenAI settings are managed through a custom UI
+        },
     ];
 
     Ok(Json(AdminSettingsTabsResponse { tabs }))
