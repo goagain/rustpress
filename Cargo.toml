@@ -1,27 +1,8 @@
 [workspace]
-members = [
-    ".",
-    "core",
-    "rustpress-migration",
-    "rustpress-cli"
-]
-exclude = [
-    "plugin_samples/*"
-]
+members = [".", "core", "rustpress-migration", "rustpress-cli", "rustpress-sdk"]
+exclude = ["plugin_samples/*"]
+resolver = "3"
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-
-[package]
-name = "rustpress"
-version.workspace = true
-edition.workspace = true
-
-[dependencies]
-rustpress-core = { path = "core" }
-tokio = { version = "1", features = ["full"] }
-
-[[bin]]
-name = "rustpress"
-path = "src/main.rs"

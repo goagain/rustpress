@@ -1,0 +1,49 @@
+[workspace]
+
+[package]
+name = "poetry"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+anyhow = "1.0"
+rustpress-sdk = { path = "../../rustpress-sdk" }
+log = "0.4"
+
+# 🔥 Rustpress Plugin Configuration
+# Uncomment and modify the following sections to configure your plugin
+
+[package.metadata.rustpress]
+# Display name for the plugin
+title = "poetry"
+# Icon path (relative to plugin root)
+icon = "assets/icon.png"
+# Unique package identifier
+package-id = "com.example.poetry"
+
+# Hooks this plugin implements (functions exported from WIT)
+hooks = [
+    "on_post_published",
+    # "on_page_view",
+    # "on_user_login"
+]
+
+# Plugin permissions
+[package.metadata.rustpress.permissions]
+# Required permissions - plugin cannot function without these
+required = [
+    # "db:read",          # Database read access
+    # "db:write",         # Database write access
+]
+
+# Optional permissions - enhance functionality but not required
+optional = [
+    # "fs:read",          # File system read access
+    # "fs:write",         # File system write access
+    # "network:http",     # HTTP network access
+    # "notify:email",     # Email notification
+    # "cache:redis",      # Redis cache access
+]

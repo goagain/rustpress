@@ -2995,20 +2995,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustpress"
-version = "0.1.0"
-dependencies = [
- "rustpress-core",
- "tokio",
-]
-
-[[package]]
 name = "rustpress-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
  "colored",
+ "toml",
+ "zip",
 ]
 
 [[package]]
@@ -3064,6 +3058,15 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "rustpress-sdk"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "log",
+ "wit-bindgen 0.50.0",
 ]
 
 [[package]]

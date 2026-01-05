@@ -13,5 +13,5 @@ interface post-hooks {
         count: s64,
     }
 
-    on-post-published: func(post: on-post-published-data) -> result<on-post-published-data>;
+    on-post-published: func(post: on-post-published-data) -> result<on-post-published-data, string>;
 }
