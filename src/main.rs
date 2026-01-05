@@ -2,7 +2,6 @@ mod api;
 mod auth;
 mod dto;
 mod entity;
-mod hook_registry;
 mod plugin;
 mod repository;
 mod rpk;
@@ -93,17 +92,24 @@ async fn main() {
     // Create post repository for plugins
     let postgres_post_repo = Arc::new(repository::PostgresPostRepository::new(db.clone()));
 
+    let plugin_engine = Arc::new(plugin::engine::PluginEngine::new(
+        Some(ai_helper.clone()),
+        Arc::new(db.clone()),
+    )?);
+
     // Initialize plugin manager
-    let plugin_manager = Arc::new(
+    let plugin_registry = Arc::new(plugin::registry::PluginRegistry::new(
         plugin::PluginManager::new(Arc::new(db.clone()))
             .expect("Failed to create plugin manager")
             .with_ai_helper(Arc::clone(&ai_helper))
             .with_post_repo(postgres_post_repo),
-    );
-    plugin_manager
-        .load_enabled_plugins()
-        .await
-        .expect("Failed to load plugins");
+    ));
+
+    let plugin_executer = Arc::new(plugin::registry::PluginExecuter::new(
+        plugin_registry.clone(),
+        Some(ai_helper.clone()),
+        Arc::new(db.clone()),
+    ));
 
     tracing::info!("✅ Plugin system initialized");
 
@@ -128,7 +134,7 @@ async fn main() {
     tracing::info!("   Base URL: {}", storage_base_url);
 
     // Create routes (API Controller layer)
-    let app = create_router(app_state, storage, db, plugin_manager);
+    let app = create_router(app_state, storage, db, plugin_registry, plugin_executer);
 
     // Start server
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")

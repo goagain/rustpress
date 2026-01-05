@@ -6,7 +6,8 @@ description = "Automatically generates categories for posts using AI"
 author = "RustPress Team"
 
 [permissions]
-required = ["post:read", "post:write", "post:list_category", "ai:chat"]
+required = ["post:read", "post:write","ai:chat"]
+optional = ["post:list_category"]
 
 [hooks]
 registered = ["filter_post_published"]

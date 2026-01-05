@@ -25,20 +25,11 @@ impl HookRegistry {
         // === Content-Related Hooks ===
         // These hooks carry sensitive post content data
         map.insert(
-            "action_post_published".into(),
+            "post_published_filter".into(),
             HookDef {
-                name: "action_post_published",
-                required_perm: Some("post:read"), // Must be able to read posts to receive content
+                name: "post_published_filter",
+                required_perm: Some("post:write"), // Must be able to read posts to receive content
                 description: "Triggered after a post is published (receives full post content)",
-            },
-        );
-
-        map.insert(
-            "filter_post_published".into(),
-            HookDef {
-                name: "filter_post_published",
-                required_perm: Some("post:write"), // Must be able to write posts to modify
-                description: "Allows modification of post data before publishing",
             },
         );
 

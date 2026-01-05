@@ -1,0 +1,18 @@
+package rustpress:plugin;
+
+interface hooks {
+    record on-post-published-data {
+        title: string,
+        content: string,
+        category: option<string>,
+        author-id: s64,
+    }
+
+    record category-info {
+        name: string,
+        count: s64,
+    }
+
+    on-post-published: func(post: on-post-published-data) -> result<on-post-published-data>;
+    list-categories: func() -> list<category-info>;
+}

@@ -94,214 +94,6 @@ pub mod rustpress {
 
     }
 
-
-    #[allow(dead_code, async_fn_in_trait, unused_imports, clippy::all)]
-    pub mod ai {
-      #[used]
-      #[doc(hidden)]
-      static __FORCE_SECTION_REF: fn() =
-      super::super::super::__link_custom_section_describing_imports;
-      
-      use super::super::super::_rt;
-      #[derive(Clone)]
-      pub struct ChatMessage {
-        pub role: _rt::String,
-        pub content: _rt::String,
-      }
-      impl ::core::fmt::Debug for ChatMessage {
-        fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-          f.debug_struct("ChatMessage").field("role", &self.role).field("content", &self.content).finish()
-        }
-      }
-      #[derive(Clone)]
-      pub struct ChatCompletionRequest {
-        pub model: Option<_rt::String>,
-        pub messages: _rt::Vec::<ChatMessage>,
-        pub max_tokens: Option<i64>,
-      }
-      impl ::core::fmt::Debug for ChatCompletionRequest {
-        fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-          f.debug_struct("ChatCompletionRequest").field("model", &self.model).field("messages", &self.messages).field("max-tokens", &self.max_tokens).finish()
-        }
-      }
-      #[derive(Clone)]
-      pub struct ChatCompletionChoice {
-        pub message: ChatMessage,
-        pub finish_reason: _rt::String,
-      }
-      impl ::core::fmt::Debug for ChatCompletionChoice {
-        fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-          f.debug_struct("ChatCompletionChoice").field("message", &self.message).field("finish-reason", &self.finish_reason).finish()
-        }
-      }
-      #[repr(C)]
-      #[derive(Clone, Copy)]
-      pub struct ChatCompletionUsage {
-        pub prompt_tokens: i64,
-        pub completion_tokens: i64,
-        pub total_tokens: i64,
-      }
-      impl ::core::fmt::Debug for ChatCompletionUsage {
-        fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-          f.debug_struct("ChatCompletionUsage").field("prompt-tokens", &self.prompt_tokens).field("completion-tokens", &self.completion_tokens).field("total-tokens", &self.total_tokens).finish()
-        }
-      }
-      #[derive(Clone)]
-      pub struct ChatCompletionResponse {
-        pub id: _rt::String,
-        pub object: _rt::String,
-        pub created: i64,
-        pub model: _rt::String,
-        pub choices: _rt::Vec::<ChatCompletionChoice>,
-        pub usage: ChatCompletionUsage,
-      }
-      impl ::core::fmt::Debug for ChatCompletionResponse {
-        fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-          f.debug_struct("ChatCompletionResponse").field("id", &self.id).field("object", &self.object).field("created", &self.created).field("model", &self.model).field("choices", &self.choices).field("usage", &self.usage).finish()
-        }
-      }
-      #[allow(unused_unsafe, clippy::all)]
-      #[allow(async_fn_in_trait)]
-      pub fn chat_completion(request: &ChatCompletionRequest,) -> Result<ChatCompletionResponse,_rt::String>{
-        unsafe {
-
-          #[repr(align(8))]
-          struct RetArea([::core::mem::MaybeUninit::<u8>; 40+8*::core::mem::size_of::<*const u8>()]);
-          let mut ret_area = RetArea([::core::mem::MaybeUninit::uninit(); 40+8*::core::mem::size_of::<*const u8>()]);
-          let ChatCompletionRequest{ model:model0, messages:messages0, max_tokens:max_tokens0, } = request;
-          let (result2_0,result2_1,result2_2,) = match model0 {
-            Some(e) => {
-              let vec1 = e;
-              let ptr1 = vec1.as_ptr().cast::<u8>();
-              let len1 = vec1.len();
-
-              (1i32, ptr1.cast_mut(), len1)
-            },
-            None => {
-              (0i32, ::core::ptr::null_mut(), 0usize)
-            },
-          };let vec6 = messages0;
-          let len6 = vec6.len();
-          let layout6 = _rt::alloc::Layout::from_size_align(vec6.len() * (4*::core::mem::size_of::<*const u8>()), ::core::mem::size_of::<*const u8>()).unwrap();
-          let (result6, _cleanup6) = wit_bindgen::rt::Cleanup::new(layout6);for (i, e) in vec6.into_iter().enumerate() {
-            let base = result6.add(i * (4*::core::mem::size_of::<*const u8>()));
-            {
-              let ChatMessage{ role:role3, content:content3, } = e;
-              let vec4 = role3;
-              let ptr4 = vec4.as_ptr().cast::<u8>();
-              let len4 = vec4.len();
-              *base.add(::core::mem::size_of::<*const u8>()).cast::<usize>() = len4;
-              *base.add(0).cast::<*mut u8>() = ptr4.cast_mut();
-              let vec5 = content3;
-              let ptr5 = vec5.as_ptr().cast::<u8>();
-              let len5 = vec5.len();
-              *base.add(3*::core::mem::size_of::<*const u8>()).cast::<usize>() = len5;
-              *base.add(2*::core::mem::size_of::<*const u8>()).cast::<*mut u8>() = ptr5.cast_mut();
-            }
-          }
-          let (result7_0,result7_1,) = match max_tokens0 {
-            Some(e) => (1i32, _rt::as_i64(e)),
-            None => {
-              (0i32, 0i64)
-            },
-          };let ptr8 = ret_area.0.as_mut_ptr().cast::<u8>();
-          #[cfg(target_arch = "wasm32")]
-          #[link(wasm_import_module = "rustpress:system/ai")]
-          unsafe extern "C" {
-            #[link_name = "chat-completion"]
-            fn wit_import9(_: i32, _: *mut u8, _: usize, _: *mut u8, _: usize, _: i32, _: i64, _: *mut u8, );
-          }
-
-          #[cfg(not(target_arch = "wasm32"))]
-          unsafe extern "C" fn wit_import9(_: i32, _: *mut u8, _: usize, _: *mut u8, _: usize, _: i32, _: i64, _: *mut u8, ) { unreachable!() }
-          wit_import9(result2_0, result2_1, result2_2, result6, len6, result7_0, result7_1, ptr8);
-          let l10 = i32::from(*ptr8.add(0).cast::<u8>());
-          let result39 = match l10 {
-            0 => {
-              let e = {
-                let l11 = *ptr8.add(8).cast::<*mut u8>();
-                let l12 = *ptr8.add(8+1*::core::mem::size_of::<*const u8>()).cast::<usize>();
-                let len13 = l12;
-                let bytes13 = _rt::Vec::from_raw_parts(l11.cast(), len13, len13);
-                let l14 = *ptr8.add(8+2*::core::mem::size_of::<*const u8>()).cast::<*mut u8>();
-                let l15 = *ptr8.add(8+3*::core::mem::size_of::<*const u8>()).cast::<usize>();
-                let len16 = l15;
-                let bytes16 = _rt::Vec::from_raw_parts(l14.cast(), len16, len16);
-                let l17 = *ptr8.add(8+4*::core::mem::size_of::<*const u8>()).cast::<i64>();
-                let l18 = *ptr8.add(16+4*::core::mem::size_of::<*const u8>()).cast::<*mut u8>();
-                let l19 = *ptr8.add(16+5*::core::mem::size_of::<*const u8>()).cast::<usize>();
-                let len20 = l19;
-                let bytes20 = _rt::Vec::from_raw_parts(l18.cast(), len20, len20);
-                let l21 = *ptr8.add(16+6*::core::mem::size_of::<*const u8>()).cast::<*mut u8>();
-                let l22 = *ptr8.add(16+7*::core::mem::size_of::<*const u8>()).cast::<usize>();
-                let base32 = l21;
-                let len32 = l22;
-                let mut result32 = _rt::Vec::with_capacity(len32);
-                for i in 0..len32 {
-                  let base = base32.add(i * (6*::core::mem::size_of::<*const u8>()));
-                  let e32 = {
-                    let l23 = *base.add(0).cast::<*mut u8>();
-                    let l24 = *base.add(::core::mem::size_of::<*const u8>()).cast::<usize>();
-                    let len25 = l24;
-                    let bytes25 = _rt::Vec::from_raw_parts(l23.cast(), len25, len25);
-                    let l26 = *base.add(2*::core::mem::size_of::<*const u8>()).cast::<*mut u8>();
-                    let l27 = *base.add(3*::core::mem::size_of::<*const u8>()).cast::<usize>();
-                    let len28 = l27;
-                    let bytes28 = _rt::Vec::from_raw_parts(l26.cast(), len28, len28);
-                    let l29 = *base.add(4*::core::mem::size_of::<*const u8>()).cast::<*mut u8>();
-                    let l30 = *base.add(5*::core::mem::size_of::<*const u8>()).cast::<usize>();
-                    let len31 = l30;
-                    let bytes31 = _rt::Vec::from_raw_parts(l29.cast(), len31, len31);
-
-                    ChatCompletionChoice{
-                      message: ChatMessage{
-                        role: _rt::string_lift(bytes25),
-                        content: _rt::string_lift(bytes28),
-                      },
-                      finish_reason: _rt::string_lift(bytes31),
-                    }
-                  };
-                  result32.push(e32);
-                }
-                _rt::cabi_dealloc(base32, len32 * (6*::core::mem::size_of::<*const u8>()), ::core::mem::size_of::<*const u8>());
-                let l33 = *ptr8.add(16+8*::core::mem::size_of::<*const u8>()).cast::<i64>();
-                let l34 = *ptr8.add(24+8*::core::mem::size_of::<*const u8>()).cast::<i64>();
-                let l35 = *ptr8.add(32+8*::core::mem::size_of::<*const u8>()).cast::<i64>();
-
-                ChatCompletionResponse{
-                  id: _rt::string_lift(bytes13),
-                  object: _rt::string_lift(bytes16),
-                  created: l17,
-                  model: _rt::string_lift(bytes20),
-                  choices: result32,
-                  usage: ChatCompletionUsage{
-                    prompt_tokens: l33,
-                    completion_tokens: l34,
-                    total_tokens: l35,
-                  },
-                }
-              };
-              Ok(e)
-            }
-            1 => {
-              let e = {
-                let l36 = *ptr8.add(8).cast::<*mut u8>();
-                let l37 = *ptr8.add(8+1*::core::mem::size_of::<*const u8>()).cast::<usize>();
-                let len38 = l37;
-                let bytes38 = _rt::Vec::from_raw_parts(l36.cast(), len38, len38);
-
-                _rt::string_lift(bytes38)
-              };
-              Err(e)
-            }
-            _ => _rt::invalid_enum_discriminant(),
-          };
-          result39
-        }
-      }
-
-    }
-
   }
 }
 #[allow(dead_code, clippy::all)]
@@ -558,9 +350,27 @@ pub mod exports {
 mod _rt {
   #![allow(dead_code, unused_imports, clippy::all)]
   pub use alloc_crate::string::String;
-  pub use alloc_crate::vec::Vec;
-  pub use alloc_crate::alloc;
 
+  #[cfg(target_arch = "wasm32")]
+  pub fn run_ctors_once() {
+    wit_bindgen::rt::run_ctors_once();
+  }
+  pub use alloc_crate::vec::Vec;
+  pub unsafe fn string_lift(bytes: Vec<u8>) -> String {
+    if cfg!(debug_assertions) {
+      String::from_utf8(bytes).unwrap()
+    } else {
+      unsafe { String::from_utf8_unchecked(bytes) }
+    }
+  }
+  pub unsafe fn invalid_enum_discriminant<T>() -> T {
+    if cfg!(debug_assertions) {
+      panic!("invalid enum discriminant")
+    } else {
+      unsafe { core::hint::unreachable_unchecked() }
+    }
+  }
+  
   pub fn as_i64<T: AsI64>(t: T) -> i64 {
     t.as_i64()
   }
@@ -588,13 +398,6 @@ mod _rt {
       self as i64
     }
   }
-  pub unsafe fn string_lift(bytes: Vec<u8>) -> String {
-    if cfg!(debug_assertions) {
-      String::from_utf8(bytes).unwrap()
-    } else {
-      unsafe { String::from_utf8_unchecked(bytes) }
-    }
-  }
   pub unsafe fn cabi_dealloc(ptr: *mut u8, size: usize, align: usize) {
     if size == 0 {
       return;
@@ -604,18 +407,7 @@ mod _rt {
       alloc::dealloc(ptr, layout);
     }
   }
-  pub unsafe fn invalid_enum_discriminant<T>() -> T {
-    if cfg!(debug_assertions) {
-      panic!("invalid enum discriminant")
-    } else {
-      unsafe { core::hint::unreachable_unchecked() }
-    }
-  }
-  
-  #[cfg(target_arch = "wasm32")]
-  pub fn run_ctors_once() {
-    wit_bindgen::rt::run_ctors_once();
-  }
+  pub use alloc_crate::alloc;
   extern crate alloc as alloc_crate;
 }
 
@@ -651,25 +443,18 @@ pub(crate) use __export_plugin_world_impl as export;
 #[unsafe(link_section = "component-type:wit-bindgen:0.50.0:rustpress:system:plugin-world:encoded world")]
 #[doc(hidden)]
 #[allow(clippy::octal_escapes)]
-pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 875] = *b"\
-\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xe8\x05\x01A\x02\x01\
-A\x06\x01B\x05\x01@\x01\x07messages\x01\0\x04\0\x08log-info\x01\0\x04\0\x08log-w\
+pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 489] = *b"\
+\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xe6\x02\x01A\x02\x01\
+A\x04\x01B\x05\x01@\x01\x07messages\x01\0\x04\0\x08log-info\x01\0\x04\0\x08log-w\
 arn\x01\0\x04\0\x09log-error\x01\0\x04\0\x09log-debug\x01\0\x03\0\x18rustpress:s\
-ystem/logging\x05\0\x01B\x11\x01r\x02\x04roles\x07contents\x04\0\x0cchat-message\
-\x03\0\0\x01ks\x01p\x01\x01kx\x01r\x03\x05model\x02\x08messages\x03\x0amax-token\
-s\x04\x04\0\x17chat-completion-request\x03\0\x05\x01r\x02\x07message\x01\x0dfini\
-sh-reasons\x04\0\x16chat-completion-choice\x03\0\x07\x01r\x03\x0dprompt-tokensx\x11\
-completion-tokensx\x0ctotal-tokensx\x04\0\x15chat-completion-usage\x03\0\x09\x01\
-p\x08\x01r\x06\x02ids\x06objects\x07createdx\x05models\x07choices\x0b\x05usage\x0a\
-\x04\0\x18chat-completion-response\x03\0\x0c\x01j\x01\x0d\x01s\x01@\x01\x07reque\
-st\x06\0\x0e\x04\0\x0fchat-completion\x01\x0f\x03\0\x13rustpress:system/ai\x05\x01\
-\x01B\x0b\x01ks\x01r\x07\x02idx\x05titles\x07contents\x08category\0\x09author-id\
-x\x0acreated-ats\x0aupdated-ats\x04\0\x09post-data\x03\0\x01\x01r\x02\x04names\x05\
-countx\x04\0\x0dcategory-info\x03\0\x03\x01j\x01\x02\x01s\x01@\x01\x04post\x02\0\
-\x05\x04\0\x11on-post-published\x01\x06\x01p\x04\x01@\0\0\x07\x04\0\x0flist-cate\
-gories\x01\x08\x04\0\x16rustpress:system/hooks\x05\x02\x04\0\x1drustpress:system\
-/plugin-world\x04\0\x0b\x12\x01\0\x0cplugin-world\x03\0\0\0G\x09producers\x01\x0c\
-processed-by\x02\x0dwit-component\x070.243.0\x10wit-bindgen-rust\x060.50.0";
+ystem/logging\x05\0\x01B\x0b\x01ks\x01r\x07\x02idx\x05titles\x07contents\x08cate\
+gory\0\x09author-idx\x0acreated-ats\x0aupdated-ats\x04\0\x09post-data\x03\0\x01\x01\
+r\x02\x04names\x05countx\x04\0\x0dcategory-info\x03\0\x03\x01j\x01\x02\x01s\x01@\
+\x01\x04post\x02\0\x05\x04\0\x11on-post-published\x01\x06\x01p\x04\x01@\0\0\x07\x04\
+\0\x0flist-categories\x01\x08\x04\0\x16rustpress:system/hooks\x05\x01\x04\0\x1dr\
+ustpress:system/plugin-world\x04\0\x0b\x12\x01\0\x0cplugin-world\x03\0\0\0G\x09p\
+roducers\x01\x0cprocessed-by\x02\x0dwit-component\x070.243.0\x10wit-bindgen-rust\
+\x060.50.0";
 
 #[inline(never)]
 #[doc(hidden)]

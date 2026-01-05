@@ -9,9 +9,43 @@ use crate::dto::openai::{
     OpenAIModel,
 };
 use crate::entity::openai_api_keys;
+use crate::plugin::rustpress::plugin::ai::*;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use std::sync::Arc;
 
+/// AI provider trait for plugin host state
+#[async_trait::async_trait]
+pub trait AiProvider: Send + Sync {
+    async fn chat_completion(
+        &self,
+        request: ChatCompletionRequest,
+    ) -> Result<ChatCompletionResponse, String>;
+    async fn list_models(&self) -> Result<Vec<String>, String>;
+    fn check_permission(&self, plugin_id: &str, permission: &str) -> bool;
+}
+
+#[async_trait::async_trait]
+impl AiProvider for AiHelper {
+    async fn chat_completion(
+        &self,
+        request: ChatCompletionRequest,
+    ) -> Result<ChatCompletionResponse, String> {
+        self.chat_completion("dummy_plugin_id", request).await
+    }
+
+    async fn list_models(&self) -> Result<Vec<String>, String> {
+        match self.list_models("dummy_plugin_id").await {
+            Ok(response) => Ok(response.models.into_iter().map(|model| model.id).collect()),
+            Err(e) => Err(e),
+        }
+    }
+
+    fn check_permission(&self, plugin_id: &str, permission: &str) -> bool {
+        // For AiHelper, we assume permission check is done at the host level
+        // This method is not used in the current implementation
+        true
+    }
+}
 /// AI Helper - Provides secure AI capabilities to authorized plugins
 pub struct AiHelper {
     db: Arc<sea_orm::DatabaseConnection>,
@@ -222,19 +256,20 @@ impl AiHelper {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use sea_orm::{Database, DatabaseConnection};
+#[async_trait::async_trait]
+impl Host for super::PluginHostState {
+    async fn chat_completion(
+        &mut self,
+        request: crate::plugin::rustpress::plugin::ai::ChatCompletionRequest,
+    ) -> Result<
+        Result<crate::plugin::rustpress::plugin::ai::ChatCompletionResponse, String>,
+        wasmtime::Error,
+    > {
+        // Check if plugin has AI chat permission
+        unimplemented!();
+    }
 
-    // Note: These tests would require a test database setup
-    // For now, they serve as documentation of the expected behavior
-
-    #[tokio::test]
-    async fn test_ai_helper_creation() {
-        // This would need a test database
-        // let db = Database::connect("postgres://test:test@localhost/test").await.unwrap();
-        // let helper = AiHelper::new(Arc::new(db));
-        // assert!(helper.check_ai_permission("test.plugin", "ai:chat").await.is_ok());
+    async fn list_models(&mut self) -> Result<Vec<String>, wasmtime::Error> {
+        unimplemented!();
     }
 }

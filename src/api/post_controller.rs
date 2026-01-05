@@ -1,8 +1,8 @@
 use crate::dto::plugin::PluginHook;
 use crate::dto::{
-    CreatePostRequest, CreateUserRequest, LoginRequest, LoginResponse, Post, PostDraftResponse,
-    PostResponse, PostVersionResponse, RefreshTokenRequest, RefreshTokenResponse, SaveDraftRequest,
-    UpdatePostRequest, UserResponse, UserRole,
+    self, CreatePostRequest, CreateUserRequest, LoginRequest, LoginResponse, Post,
+    PostDraftResponse, PostResponse, PostVersionResponse, RefreshTokenRequest,
+    RefreshTokenResponse, SaveDraftRequest, UpdatePostRequest, UserResponse, UserRole,
 };
 use crate::repository::{PostRepository, UserRepository};
 use axum::{
@@ -37,7 +37,8 @@ pub struct ExtendedAppState<
     pub app_state: Arc<AppState<PR, UR>>,
     pub storage: Arc<SB>,
     pub db: Arc<sea_orm::DatabaseConnection>,
-    pub plugin_manager: Arc<crate::plugin::PluginManager>,
+    pub plugin_registry: Arc<crate::plugin::registry::PluginRegistry>,
+    pub plugin_executer: Arc<crate::plugin::registry::PluginExecuter>,
 }
 
 impl<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>
@@ -47,13 +48,15 @@ impl<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>
         app_state: Arc<AppState<PR, UR>>,
         storage: Arc<SB>,
         db: sea_orm::DatabaseConnection,
-        plugin_manager: Arc<crate::plugin::PluginManager>,
+        plugin_registry: Arc<crate::plugin::registry::PluginRegistry>,
+        plugin_executer: Arc<crate::plugin::registry::PluginExecuter>,
     ) -> Self {
         Self {
             app_state,
             storage,
             db: Arc::new(db),
-            plugin_manager,
+            plugin_registry,
+            plugin_executer,
         }
     }
 }
@@ -145,77 +148,31 @@ pub async fn create_post<
 ) -> Result<(axum::http::StatusCode, Json<PostResponse>), StatusCode> {
     // User must be authenticated (already checked by middleware)
 
-    // Create initial post data for filtering
-    let category = payload.category.as_deref().unwrap_or("");
-    let initial_post_data = serde_json::json!({
-        "id": 0, // Will be set after creation
-        "title": payload.title,
-        "content": payload.content,
-        "category": category,
-        "author_id": payload.author_id,
-        "created_at": chrono::Utc::now(),
-        "updated_at": chrono::Utc::now()
-    });
-
-    // Apply filter hooks to modify post data before creation
-    let plugin_manager = state.plugin_manager.clone();
-    let (filtered_post_data, _filter_results) = plugin_manager
-        .execute_filter_hook(PluginHook::FilterPostPublished, initial_post_data)
+    // Parse JSON payload into initial_post_data (dto::post::Post)
+    let initial_post_data: CreatePostRequest = payload.into();
+    let filtered_post_data = state
+        .plugin_executer
+        .post_published_filter(initial_post_data)
         .await;
 
-    // Extract modified data for post creation
-    let filtered_title = filtered_post_data["title"]
-        .as_str()
-        .unwrap_or(&payload.title)
-        .to_string();
-    let filtered_content = filtered_post_data["content"]
-        .as_str()
-        .unwrap_or(&payload.content)
-        .to_string();
-    let filtered_category = filtered_post_data["category"]
-        .as_str()
-        .unwrap_or_else(|| payload.category.as_deref().unwrap_or(""))
-        .to_string();
-
-    // Create post with filtered data
-    let filtered_payload = CreatePostRequest {
-        title: filtered_title,
-        content: filtered_content,
-        category: Some(filtered_category),
-        author_id: payload.author_id,
+    let filtered_post_data = match filtered_post_data {
+        Ok(filtered_post_data) => filtered_post_data,
+        Err(e) => {
+            tracing::error!("Error calling post_published_filter: {:?}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
     };
 
-    match state
+    let post = state
         .app_state
         .post_repository
-        .create(filtered_payload)
+        .create(filtered_post_data)
         .await
-    {
-        Ok(post) => {
-            let post_response = PostResponse::from(post.clone());
-
-            // Execute post published action hooks asynchronously (non-blocking)
-            let final_post_data = serde_json::json!({
-                "id": post.id,
-                "title": post.title,
-                "content": post.content,
-                "category": post.category,
-                "author_id": post.author_id,
-                "created_at": post.created_at,
-                "updated_at": post.updated_at
-            });
-
-            let plugin_manager_clone = state.plugin_manager.clone();
-            tokio::spawn(async move {
-                plugin_manager_clone
-                    .execute_action_hook(PluginHook::ActionPostPublished, final_post_data)
-                    .await;
-            });
-
-            Ok((StatusCode::CREATED, Json(post_response)))
-        }
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
-    }
+        .map_err(|e| {
+            tracing::error!("Error creating post: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    Ok((StatusCode::CREATED, Json(PostResponse::from(post))))
 }
 
 /// Update a post (full update)

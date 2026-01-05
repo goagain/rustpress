@@ -8,9 +8,8 @@ use crate::repository::{PostRepository, UserRepository};
 use crate::storage::StorageBackend;
 #[allow(unused_imports)] // post, put, delete, patch are used via method chaining
 use axum::{
-    middleware,
+    Router, middleware,
     routing::{delete, get, patch, post, put},
-    Router,
 };
 use std::sync::Arc;
 use tower_http::cors::{AllowOrigin, CorsLayer};
@@ -29,10 +28,17 @@ pub fn create_router<
     app_state: Arc<AppState<PR, UR>>,
     storage: Arc<SB>,
     db: sea_orm::DatabaseConnection,
-    plugin_manager: Arc<crate::plugin::PluginManager>,
+    plugin_registry: Arc<crate::plugin::registry::PluginRegistry>,
+    plugin_executer: Arc<crate::plugin::registry::PluginExecuter>,
 ) -> Router {
     // Create extended state that includes storage, database, and plugin manager
-    let state = Arc::new(ExtendedAppState::new(app_state, storage, db, plugin_manager));
+    let state = Arc::new(ExtendedAppState::new(
+        app_state,
+        storage,
+        db,
+        plugin_registry,
+        plugin_executer,
+    ));
 
     // Public routes (no authentication required)
     let public_routes = Router::new()

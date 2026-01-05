@@ -1,31 +1,4 @@
-package rustpress:system;
-
-interface hooks {
-    record post-data {
-        id: s64,
-        title: string,
-        content: string,
-        category: option<string>,
-        author-id: s64,
-        created-at: string,
-        updated-at: string,
-    }
-
-    record category-info {
-        name: string,
-        count: s64,
-    }
-
-    on-post-published: func(post: post-data) -> result<post-data, string>;
-    list-categories: func() -> list<category-info>;
-}
-
-interface logging {
-    log-info: func(message: string);
-    log-warn: func(message: string);
-    log-error: func(message: string);
-    log-debug: func(message: string);
-}
+package rustpress:plugin;
 
 interface ai {
     record chat-message {
@@ -61,9 +34,4 @@ interface ai {
 
     chat-completion: func(request: chat-completion-request) -> result<chat-completion-response, string>;
     list-models: func() -> list<string>;
-}
-
-world plugin-world {
-    import logging;
-    export hooks;
 }

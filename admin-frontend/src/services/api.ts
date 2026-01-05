@@ -8,9 +8,6 @@ import type {
   AdminResetPasswordResponse,
   AdminPluginListResponse,
   AdminPluginUpdateRequest,
-  PluginPermissionsResponse,
-  UpdatePluginPermissionsRequest,
-  PluginInstallRequest,
   OpenAIApiKeyResponse,
   CreateOpenAIApiKeyRequest,
   UpdateOpenAIApiKeyRequest,
@@ -248,7 +245,7 @@ export const api = {
   async updateAdminPlugin(
     pluginId: number,
     update: AdminPluginUpdateRequest
-  ): Promise<AdminPluginEnableResponse> {
+  ): Promise<AdminPluginListResponse> {
     const response = await authenticatedFetch(
       `${API_BASE_URL}/admin/plugins/${pluginId}`,
       {
@@ -260,87 +257,6 @@ export const api = {
       throw new Error('Failed to update plugin');
     }
     return response.json();
-  },
-
-  async uploadPlugin(formData: FormData): Promise<void> {
-    const token = getAccessToken();
-
-    const response = await fetch(`${API_BASE_URL}/admin/plugins/upload`, {
-      method: 'POST',
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to upload plugin: ${errorText}`);
-    }
-  },
-
-  async uninstallPlugin(pluginId: number): Promise<void> {
-    const response = await authenticatedFetch(
-      `${API_BASE_URL}/admin/plugins/${pluginId}`,
-      {
-        method: 'DELETE',
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to uninstall plugin: ${errorText}`);
-    }
-  },
-
-  async installPlugin(request: PluginInstallRequest): Promise<void> {
-    const response = await authenticatedFetch(`${API_BASE_URL}/admin/plugins`, {
-      method: 'POST',
-      body: JSON.stringify(request),
-    });
-    if (!response.ok) {
-      throw new Error('Failed to install plugin');
-    }
-  },
-
-  async getPluginPermissions(pluginId: string): Promise<PluginPermissionsResponse> {
-    const response = await authenticatedFetch(`${API_BASE_URL}/admin/plugins/${pluginId}/permissions`);
-    if (!response.ok) {
-      throw new Error('Failed to get plugin permissions');
-    }
-    return response.json();
-  },
-
-  async updatePluginPermissions(
-    pluginId: string,
-    request: UpdatePluginPermissionsRequest
-  ): Promise<void> {
-    const response = await authenticatedFetch(
-      `${API_BASE_URL}/admin/plugins/${pluginId}/permissions`,
-      {
-        method: 'PUT',
-        body: JSON.stringify(request),
-      }
-    );
-    if (!response.ok) {
-      throw new Error('Failed to update plugin permissions');
-    }
-  },
-
-  async reviewPluginPermissions(
-    pluginId: string,
-    approvedPermissions: Record<string, boolean>
-  ): Promise<void> {
-    const response = await authenticatedFetch(
-      `${API_BASE_URL}/admin/plugins/${pluginId}/review-permissions`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ approved_permissions: approvedPermissions }),
-      }
-    );
-    if (!response.ok) {
-      throw new Error('Failed to review plugin permissions');
-    }
   },
 
   // OpenAI API methods

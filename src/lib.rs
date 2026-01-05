@@ -4,7 +4,6 @@ pub mod api;
 pub mod auth;
 pub mod dto;
 pub mod entity;
-pub mod hook_registry;
 pub mod plugin;
 pub mod repository;
 pub mod rpk;

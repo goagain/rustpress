@@ -1,13 +1,6 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AdminPanel } from './components/Admin/AdminPanel';
 import { LoginForm } from './components/Auth/LoginForm';
-import { SettingsPage } from './components/Admin/SettingsPage';
-import { GeneralSettingsPage } from './components/Admin/Settings/GeneralSettingsPage';
-import { OpenAISettingsPage } from './components/Admin/Settings/OpenAISettingsPage';
-import { UsersPage } from './components/Admin/UsersPage';
-import { PostsPage } from './components/Admin/PostsPage';
-import { PluginsPage } from './components/Admin/PluginsPage';
 import { api, isAuthenticated, clearTokens } from './services/api';
 
 export default function App() {
@@ -53,25 +46,5 @@ export default function App() {
     );
   }
 
-  if (!authenticated) {
-    return <LoginForm onSuccess={handleLoginSuccess} />;
-  }
-
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<AdminPanel />}>
-          <Route index element={<Navigate to="/settings" replace />} />
-          <Route path="settings" element={<SettingsPage />}>
-            <Route index element={<Navigate to="/settings/general" replace />} />
-            <Route path="general" element={<GeneralSettingsPage />} />
-            <Route path="openai" element={<OpenAISettingsPage />} />
-          </Route>
-          <Route path="users" element={<UsersPage />} />
-          <Route path="posts" element={<PostsPage />} />
-          <Route path="plugins" element={<PluginsPage />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
-  );
+  return authenticated ? <AdminPanel /> : <LoginForm onSuccess={handleLoginSuccess} />;
 }
