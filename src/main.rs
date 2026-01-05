@@ -92,17 +92,12 @@ async fn main() {
     // Create post repository for plugins
     let postgres_post_repo = Arc::new(repository::PostgresPostRepository::new(db.clone()));
 
-    let plugin_engine = Arc::new(plugin::engine::PluginEngine::new(
-        Some(ai_helper.clone()),
-        Arc::new(db.clone()),
-    )?);
+    let plugin_engine = Arc::new(plugin::engine::PluginEngine::new().expect("Failed to create plugin engine"));
 
-    // Initialize plugin manager
+    // Initialize plugin system
     let plugin_registry = Arc::new(plugin::registry::PluginRegistry::new(
-        plugin::PluginManager::new(Arc::new(db.clone()))
-            .expect("Failed to create plugin manager")
-            .with_ai_helper(Arc::clone(&ai_helper))
-            .with_post_repo(postgres_post_repo),
+        plugin_engine,
+        Arc::new(db.clone())
     ));
 
     let plugin_executer = Arc::new(plugin::registry::PluginExecuter::new(

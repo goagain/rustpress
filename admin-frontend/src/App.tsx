@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Outlet } from 'react-router-dom';
 import { AdminPanel } from './components/Admin/AdminPanel';
 import { LoginForm } from './components/Auth/LoginForm';
 import { api, isAuthenticated, clearTokens } from './services/api';
@@ -46,5 +47,18 @@ export default function App() {
     );
   }
 
-  return authenticated ? <AdminPanel /> : <LoginForm onSuccess={handleLoginSuccess} />;
+  if (!authenticated) {
+    return <LoginForm onSuccess={handleLoginSuccess} />;
+  }
+
+  return (
+    <AdminPanel>
+      <Outlet />
+    </AdminPanel>
+  );
+}
+
+// Wrapper component that provides authentication context
+export function AuthenticatedApp() {
+  return <App />;
 }

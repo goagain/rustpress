@@ -3,6 +3,7 @@
 use crate::plugin::engine::PluginEngine;
 use crate::plugin::exports::rustpress::plugin::hooks::OnPostPublishedData;
 use crate::plugin::loaded_plugin::LoadedPlugin;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -13,13 +14,15 @@ pub struct PluginRegistry {
     plugins: Arc<RwLock<HashMap<(String, String), LoadedPlugin>>>,
     hook_to_plugins: Arc<RwLock<HashMap<String, Vec<(String, String)>>>>,
     engine: Arc<PluginEngine>,
+    db: Arc<sea_orm::DatabaseConnection>,
 }
 
 impl PluginRegistry {
     /// Create a new plugin registry
-    pub fn new(engine: Arc<PluginEngine>) -> Self {
+    pub fn new(engine: Arc<PluginEngine>, db: Arc<sea_orm::DatabaseConnection>) -> Self {
         Self {
             engine,
+            db,
             plugins: Arc::new(RwLock::new(HashMap::new())),
             hook_to_plugins: Arc::new(RwLock::new(HashMap::new())),
         }
@@ -209,6 +212,177 @@ impl PluginRegistry {
             .await
             .get(&(plugin_id.to_string(), version.to_string()))
             .cloned()
+    }
+
+    /// Load all enabled plugins from database
+    pub async fn load_enabled_plugins(
+        &self,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // TODO: Implement loading enabled plugins from database
+        // For now, this is a placeholder
+        tracing::info!("Loading enabled plugins from database");
+        Ok(())
+    }
+
+    /// Install a plugin from RPK data
+    pub async fn install_plugin(
+        &self,
+        rpk_data: &[u8],
+        permission_grants: &std::collections::HashMap<String, bool>,
+    ) -> Result<
+        (serde_json::Value, crate::dto::plugin::PluginUpdateAnalysis),
+        Box<dyn std::error::Error + Send + Sync>,
+    > {
+        use sea_orm::{ActiveModelTrait, Set};
+
+        // Create temporary directory for extraction
+        let temp_dir = std::env::temp_dir().join(format!(
+            "rustpress_plugin_install_{}",
+            chrono::Utc::now().timestamp()
+        ));
+        std::fs::create_dir_all(&temp_dir)?;
+
+        // Extract and validate RPK
+        let mut rpk_processor =
+            crate::rpk::RpkProcessor::new(temp_dir.clone(), temp_dir.join("cache"));
+        rpk_processor.init()?;
+        let package = rpk_processor
+            .extract_and_validate(&std::path::Path::new("temp.rpk"), None)
+            .await?;
+        let plugin_id = &package.manifest.package.id;
+
+        // Check if plugin already exists
+        let existing_plugin = crate::entity::plugins::Entity::find()
+            .filter(crate::entity::plugins::Column::Name.eq(plugin_id))
+            .one(&*self.db)
+            .await?;
+
+        if existing_plugin.is_some() {
+            return Err("Plugin already exists".into());
+        }
+
+        // Save RPK file
+        let rpk_path = temp_dir.join(format!("{}.rpk", plugin_id));
+        std::fs::write(&rpk_path, rpk_data)?;
+
+        // Cache package files
+        rpk_processor
+            .cache_package_files(&package, &temp_dir.join("cache"))
+            .await?;
+
+        // Create plugin record in database
+        let manifest_json = serde_json::to_value(&package.manifest)?;
+        let version = package.manifest.package.version.clone();
+        let plugin_model = crate::entity::plugins::ActiveModel {
+            name: Set(plugin_id.clone()),
+            description: Set(package.manifest.package.description),
+            version: Set(version.clone()),
+            enabled: Set(false),
+            status: Set("disabled".to_string()),
+            config: Set(None),
+            manifest: Set(Some(manifest_json.clone())),
+            created_at: Set(chrono::Utc::now().into()),
+            updated_at: Set(chrono::Utc::now().into()),
+            ..Default::default()
+        };
+
+        plugin_model.insert(&*self.db).await?;
+
+        // Analyze update (new installation)
+        let analysis = crate::dto::plugin::PluginUpdateAnalysis {
+            plugin_id: plugin_id.clone(),
+            current_version: "0.0.0".to_string(),
+            new_version: version,
+            status: crate::dto::plugin::PluginUpdateStatus::NeedsReview,
+            new_required_permissions: package.manifest.permissions.required,
+            new_optional_permissions: Vec::new(), // Optional permissions not used in new format
+            message: "New plugin installation requires permission review".to_string(),
+        };
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&temp_dir);
+
+        Ok((manifest_json, analysis))
+    }
+
+    /// Uninstall a plugin
+    pub async fn uninstall_plugin(
+        &self,
+        plugin_name: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // Remove from registry first
+        self.unregister_plugin(plugin_name).await?;
+
+        // Remove from database
+        crate::entity::plugins::Entity::delete_many()
+            .filter(crate::entity::plugins::Column::Name.eq(plugin_name))
+            .exec(&*self.db)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Get current permissions for a plugin
+    pub async fn get_plugin_permissions(
+        &self,
+        plugin_id: &str,
+    ) -> Result<std::collections::HashMap<String, bool>, Box<dyn std::error::Error + Send + Sync>>
+    {
+        // For now, return all permissions as granted
+        // TODO: Implement proper permission tracking
+        let mut permissions = std::collections::HashMap::new();
+        permissions.insert("post:read".to_string(), true);
+        permissions.insert("post:write".to_string(), true);
+        permissions.insert("ai:chat".to_string(), true);
+        Ok(permissions)
+    }
+
+    /// Update plugin permissions
+    pub async fn update_plugin_permissions(
+        &self,
+        plugin_id: &str,
+        permissions: &std::collections::HashMap<String, bool>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // TODO: Implement permission persistence
+        tracing::info!(
+            "Updated permissions for plugin {}: {:?}",
+            plugin_id,
+            permissions
+        );
+        Ok(())
+    }
+
+    /// Analyze permissions when enabling a plugin
+    pub async fn analyze_enable_permissions(
+        &self,
+        plugin_name: &str,
+    ) -> Result<std::collections::HashMap<String, String>, Box<dyn std::error::Error + Send + Sync>>
+    {
+        // Get plugin from database
+        let plugin = crate::entity::plugins::Entity::find()
+            .filter(crate::entity::plugins::Column::Name.eq(plugin_name))
+            .one(&*self.db)
+            .await?
+            .ok_or("Plugin not found")?;
+
+        let mut new_permissions = std::collections::HashMap::new();
+
+        if let Some(manifest_value) = plugin.manifest {
+            // Extract required permissions
+            if let Some(required_perms) = manifest_value
+                .get("permissions")
+                .and_then(|p| p.get("required"))
+                .and_then(|r| r.as_array())
+            {
+                for perm in required_perms {
+                    if let Some(perm_str) = perm.as_str() {
+                        new_permissions.insert(perm_str.to_string(), "required".to_string());
+                    }
+                }
+            }
+        }
+
+        Ok(new_permissions)
     }
 }
 

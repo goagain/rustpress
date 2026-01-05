@@ -1,19 +1,23 @@
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { clearTokens } from '../../services/api';
 
-export function AdminPanel() {
+interface AdminPanelProps {
+  children: React.ReactNode;
+}
+
+export function AdminPanel({ children }: AdminPanelProps) {
   const location = useLocation();
 
   const tabs = [
-    { id: 'settings', label: 'Settings', path: '/settings' },
+    { id: 'settings', label: 'Settings', path: '/settings/general' },
     { id: 'users', label: 'Users', path: '/users' },
     { id: 'posts', label: 'Posts', path: '/posts' },
     { id: 'plugins', label: 'Plugins', path: '/plugins' },
   ];
 
   const settingsSubTabs = [
-    { id: 'general', label: 'General', path: '/settings/general' },
-    { id: 'openai', label: 'OpenAI', path: '/settings/openai' },
+    { id: 'general', label: 'General', path: 'settings/general' },
+    { id: 'openai', label: 'OpenAI', path: 'settings/openai' },
   ];
 
   const getActiveTab = () => {
@@ -101,7 +105,7 @@ export function AdminPanel() {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Outlet />
+        {children}
       </div>
     </div>
   );

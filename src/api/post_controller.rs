@@ -28,7 +28,7 @@ impl<PR: PostRepository, UR: UserRepository> AppState<PR, UR> {
     }
 }
 
-/// Extended application state that includes storage backend, database connection, and plugin manager
+/// Extended application state that includes storage backend, database connection, and plugin system
 pub struct ExtendedAppState<
     PR: PostRepository,
     UR: UserRepository,

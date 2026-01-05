@@ -101,7 +101,7 @@ pub async fn update_plugin<
     let new_permissions = if payload.enabled == Some(true) && !plugin_model.enabled {
         // Plugin is being enabled - check for new permissions
         match state
-            .plugin_manager
+            .plugin_registry
             .analyze_enable_permissions(&plugin_model.name)
             .await
         {
@@ -184,9 +184,9 @@ pub async fn uninstall_plugin<
 
     let plugin_name = plugin.name.clone();
 
-    // Uninstall plugin using plugin manager
+    // Uninstall plugin using plugin registry
     state
-        .plugin_manager
+        .plugin_registry
         .uninstall_plugin(&plugin_name)
         .await
         .map_err(|e| {
@@ -226,9 +226,9 @@ pub async fn install_plugin<
         .decode(&payload.rpk_data)
         .map_err(|_| StatusCode::BAD_REQUEST)?;
 
-    // Install plugin using plugin manager
+    // Install plugin using plugin registry
     let (_manifest, _update_analysis) = state
-        .plugin_manager
+        .plugin_registry
         .install_plugin(&rpk_data, &payload.permission_grants)
         .await
         .map_err(|e| {
@@ -262,21 +262,123 @@ pub async fn get_plugin_permissions<
     Extension(_current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
     Path(plugin_id): Path<String>,
 ) -> Result<Json<PluginPermissionsResponse>, StatusCode> {
-    let permissions_map = state
-        .plugin_manager
+    // Get database connection
+    let db = state.db.clone();
+
+    // Find the plugin in the database
+    let plugin = plugins::Entity::find()
+        .filter(plugins::Column::Name.eq(&plugin_id))
+        .one(&*db)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to find plugin '{}': {}", plugin_id, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    // Parse the manifest to get required permissions
+    let manifest: serde_json::Value = serde_json::from_str(&plugin.manifest.unwrap().to_string())
+        .map_err(|e| {
+        tracing::error!("Failed to parse plugin manifest for '{}': {}", plugin_id, e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // Get current granted permissions from plugin registry
+    let current_permissions = state
+        .plugin_registry
         .get_plugin_permissions(&plugin_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to get plugin permissions: {}", e);
+            tracing::error!(
+                "Failed to get current permissions for '{}': {}",
+                plugin_id,
+                e
+            );
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    let permissions = PluginPermissionsResponse {
+    // Extract required and optional permissions from manifest
+    let mut permissions: Vec<crate::dto::plugin::PluginPermissionInfo> = Vec::new();
+
+    // Add required permissions
+    if let Some(required_perms) = manifest
+        .get("permissions")
+        .and_then(|p| p.get("required"))
+        .and_then(|r| r.as_array())
+    {
+        for perm in required_perms {
+            if let Some(perm_str) = perm.as_str() {
+                permissions.push(crate::dto::plugin::PluginPermissionInfo {
+                    permission: perm_str.to_string(),
+                    is_granted: true, // Required permissions are always granted
+                    permission_type: "required".to_string(),
+                    description: get_permission_description(perm_str),
+                });
+            }
+        }
+    }
+
+    // Add optional permissions
+    if let Some(optional_perms) = manifest
+        .get("permissions")
+        .and_then(|p| p.get("optional"))
+        .and_then(|o| o.as_array())
+    {
+        for perm in optional_perms {
+            if let Some(perm_str) = perm.as_str() {
+                let is_granted = current_permissions.get(perm_str).copied().unwrap_or(false);
+                permissions.push(crate::dto::plugin::PluginPermissionInfo {
+                    permission: perm_str.to_string(),
+                    is_granted,
+                    permission_type: "optional".to_string(),
+                    description: get_permission_description(perm_str),
+                });
+            }
+        }
+    }
+
+    // If no permissions defined in manifest, check hooks for implicit permissions
+    if permissions.is_empty() {
+        if let Some(hooks) = manifest
+            .get("hooks")
+            .and_then(|h| h.get("registered"))
+            .and_then(|r| r.as_array())
+        {
+            for hook in hooks {
+                if let Some(hook_str) = hook.as_str() {
+                    // Get required permission for this hook
+                    if let Some(required_perm) =
+                        crate::plugin::hook_registry::HookRegistry::get_hook_permission(hook_str)
+                    {
+                        permissions.push(crate::dto::plugin::PluginPermissionInfo {
+                            permission: required_perm.clone(),
+                            is_granted: true, // Hook-registered permissions are granted
+                            permission_type: "required".to_string(),
+                            description: get_permission_description(&required_perm),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    let response = PluginPermissionsResponse {
         plugin_id: plugin_id.clone(),
-        permissions: vec![], // Simplified for now
+        permissions,
     };
 
-    Ok(Json(permissions))
+    Ok(Json(response))
+}
+
+/// Get human-readable description for a permission
+fn get_permission_description(permission: &str) -> Option<String> {
+    match permission {
+        "post:read" => Some("Read access to blog posts and their content".to_string()),
+        "post:write" => Some("Write/modify access to blog posts".to_string()),
+        "post:list_category" => Some("List all categories and their post counts".to_string()),
+        "ai:chat" => Some("Access to AI chat completion APIs".to_string()),
+        _ => None,
+    }
 }
 
 /// Update plugin permissions
@@ -306,14 +408,14 @@ pub async fn update_plugin_permissions<
 ) -> Result<StatusCode, StatusCode> {
     // First get current permissions to check if plugin exists
     let _current_permissions = state
-        .plugin_manager
+        .plugin_registry
         .get_plugin_permissions(&plugin_id)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
     // Update permissions
     state
-        .plugin_manager
+        .plugin_registry
         .update_plugin_permissions(&plugin_id, &payload.permissions)
         .await
         .map_err(|e| {
@@ -367,7 +469,7 @@ pub async fn review_plugin_permissions<
 
     // Update permissions first
     state
-        .plugin_manager
+        .plugin_registry
         .update_plugin_permissions(&plugin_id, &payload.approved_permissions)
         .await
         .map_err(|e| {
@@ -506,9 +608,9 @@ pub async fn upload_plugin<
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    // Install plugin using plugin manager
+    // Install plugin using plugin registry
     let (_manifest, _update_analysis) = state
-        .plugin_manager
+        .plugin_registry
         .install_plugin(&rpk_data, &std::collections::HashMap::new())
         .await
         .map_err(|e| {
@@ -521,7 +623,7 @@ pub async fn upload_plugin<
 
     // Reload plugins to register hooks for the newly installed plugin
     state
-        .plugin_manager
+        .plugin_registry
         .load_enabled_plugins()
         .await
         .map_err(|e| {

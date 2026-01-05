@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import type {
   AdminPluginListResponse,
-  AdminPluginEnableResponse,
 } from '../../types';
 import { PluginPermissionsModal } from './PluginPermissionsModal';
 

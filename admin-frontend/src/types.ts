@@ -88,6 +88,8 @@ export interface AdminPluginListResponse {
   manifest: any;
   created_at: string;
   updated_at: string;
+  requires_permission_review?: boolean;
+  new_permissions?: string[];
 }
 
 export interface AdminPluginUpdateRequest {

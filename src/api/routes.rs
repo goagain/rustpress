@@ -31,7 +31,7 @@ pub fn create_router<
     plugin_registry: Arc<crate::plugin::registry::PluginRegistry>,
     plugin_executer: Arc<crate::plugin::registry::PluginExecuter>,
 ) -> Router {
-    // Create extended state that includes storage, database, and plugin manager
+    // Create extended state that includes storage, database, and plugin system
     let state = Arc::new(ExtendedAppState::new(
         app_state,
         storage,
@@ -110,25 +110,21 @@ pub fn create_router<
     // Create admin router with nested routes and middleware
     let admin_router = admin_api::create_admin_router::<PR, UR, SB>();
 
-    // Admin frontend router (must be defined before main frontend)
-    let admin_frontend_routes = Router::new()
-        // Serve admin static assets (e.g., /admin/assets/*)
-        .nest_service("/admin/assets", ServeDir::new("admin-frontend/dist/assets"))
-        // Admin SPA routes - match /admin and /admin/*
-        .nest("/admin", Router::new().fallback(serve_admin_spa));
-
     Router::new()
         .merge(public_routes)
         .merge(protected_routes)
         // Nest admin router under /api/admin
         .nest("/api/admin", admin_router)
+        // Admin frontend routes (must be before main frontend and fallback)
+        .nest_service("/admin/assets", ServeDir::new("admin-frontend/dist/assets"))
+        .route("/admin", get(serve_admin_spa))
+        .route("/admin/", get(serve_admin_spa))
+        .route("/admin/*path", get(serve_admin_spa))
         // Serve uploaded files
         // GET /uploads/* - Serve uploaded files
         .nest_service("/uploads", ServeDir::new("uploads"))
         // Swagger UI
         .merge(SwaggerUi::new("/swagger-ui").url("/api-doc/openapi.json", ApiDoc::openapi()))
-        // Admin frontend routes (must be before main frontend)
-        .merge(admin_frontend_routes)
         // Serve main frontend static files
         .nest_service("/assets", ServeDir::new("frontend/dist/assets"))
         .nest_service("/", ServeDir::new("frontend/dist"))
