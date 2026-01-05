@@ -4,8 +4,18 @@ use crate::repository::{
 };
 use sea_orm::{Database, DbErr};
 use std::sync::Arc;
+mod api;
+mod auth;
+mod dto;
+mod entity;
+mod plugin;
+mod repository;
+mod rpk;
+mod seed;
+mod storage;
 
-pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Initialize color-eyre for better error reporting with stack traces
     color_eyre::install().expect("Failed to install color-eyre");
 
@@ -80,8 +90,16 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Create AI helper for plugins
     let ai_helper = Arc::new(crate::plugin::ai::AiHelper::new(Arc::new(db.clone())));
 
-    // Create post repository for plugins
-    let postgres_post_repo = Arc::new(crate::repository::PostgresPostRepository::new(db.clone()));
+    // Create RPK processor
+    let rpk_processor = Arc::new(crate::rpk::RpkProcessor::new(
+        std::env::current_dir().unwrap().join("installed_plugins"),
+        std::env::current_dir().unwrap().join(".rpk_cache"),
+    ));
+
+    // Initialize RPK processor directories
+    rpk_processor
+        .init()
+        .expect("Failed to initialize RPK processor directories");
 
     let plugin_engine = Arc::new(
         crate::plugin::engine::PluginEngine::new().expect("Failed to create plugin engine"),
@@ -91,6 +109,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let plugin_registry = Arc::new(crate::plugin::registry::PluginRegistry::new(
         plugin_engine,
         Arc::new(db.clone()),
+        rpk_processor.clone(),
     ));
 
     let plugin_executer = Arc::new(crate::plugin::registry::PluginExecuter::new(

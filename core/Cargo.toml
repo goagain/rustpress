@@ -38,10 +38,11 @@ tempfile = "3.8"
 futures = "0.3"
 wit-bindgen = "0.50.0"
 anyhow = "1.0.100"
+bytes = "1.0"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 [[bin]]
-name = "rpk-builder"
-path = "src/bin/rpk_builder.rs"
+name = "rustpress"
+path = "src/main.rs"

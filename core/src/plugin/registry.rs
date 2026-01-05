@@ -17,16 +17,22 @@ pub struct PluginRegistry {
     hook_to_plugins: Arc<RwLock<HashMap<String, Vec<(String, String)>>>>,
     engine: Arc<PluginEngine>,
     db: Arc<sea_orm::DatabaseConnection>,
+    rpk_processor: Arc<crate::rpk::RpkProcessor>,
 }
 
 impl PluginRegistry {
     /// Create a new plugin registry
-    pub fn new(engine: Arc<PluginEngine>, db: Arc<sea_orm::DatabaseConnection>) -> Self {
+    pub fn new(
+        engine: Arc<PluginEngine>,
+        db: Arc<sea_orm::DatabaseConnection>,
+        rpk_processor: Arc<crate::rpk::RpkProcessor>,
+    ) -> Self {
         Self {
             engine,
             db,
             plugins: Arc::new(RwLock::new(HashMap::new())),
             hook_to_plugins: Arc::new(RwLock::new(HashMap::new())),
+            rpk_processor,
         }
     }
 
@@ -134,14 +140,19 @@ impl PluginRegistry {
         &self,
         plugin_id: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.plugins
+        let plugins_to_unregister: Vec<_> = self
+            .plugins
             .write()
             .await
             .iter()
             .filter(|(id, _)| id.0 == plugin_id)
-            .for_each(|(_, plugin)| {
-                self.unregister_plugin_with_version(&plugin.plugin_id, &plugin.version);
-            });
+            .map(|(_, plugin)| (plugin.plugin_id.clone(), plugin.version.clone()))
+            .collect();
+
+        for (plugin_id, version) in plugins_to_unregister {
+            self.unregister_plugin_with_version(&plugin_id, &version)
+                .await?;
+        }
         Ok(())
     }
     /// Unregister a plugin from the registry
@@ -230,32 +241,27 @@ impl PluginRegistry {
     pub async fn install_plugin(
         &self,
         rpk_data: &[u8],
-        permission_grants: &std::collections::HashMap<String, bool>,
     ) -> Result<
         (serde_json::Value, crate::dto::plugin::PluginUpdateAnalysis),
         Box<dyn std::error::Error + Send + Sync>,
     > {
         use sea_orm::{ActiveModelTrait, Set};
 
-        // Create temporary directory for extraction
-        let temp_dir = std::env::temp_dir().join(format!(
-            "rustpress_plugin_install_{}",
-            chrono::Utc::now().timestamp()
-        ));
-        std::fs::create_dir_all(&temp_dir)?;
-
-        // Extract and validate RPK
-        let mut rpk_processor =
-            crate::rpk::RpkProcessor::new(temp_dir.clone(), temp_dir.join("cache"));
-        rpk_processor.init()?;
-        let package = rpk_processor
-            .extract_and_validate(&std::path::Path::new("temp.rpk"), None)
+        // Read the RPK archive and extract the plugin manifest
+        let mut cursor = std::io::Cursor::new(rpk_data.to_vec());
+        let package = self
+            .rpk_processor
+            .read_package_from_reader(&mut cursor)
             .await?;
-        let plugin_id = &package.manifest.package.id;
+
+        // Extract plugin_id and version from the package manifest
+        let plugin_id = package.manifest.package.name.clone();
+        let version = package.manifest.package.version.clone();
+        let manifest_plugin_id = package.manifest.package.id.clone();
 
         // Check if plugin already exists
         let existing_plugin = crate::entity::plugins::Entity::find()
-            .filter(crate::entity::plugins::Column::Name.eq(plugin_id))
+            .filter(crate::entity::plugins::Column::Name.eq(&plugin_id))
             .one(&*self.db)
             .await?;
 
@@ -264,20 +270,17 @@ impl PluginRegistry {
         }
 
         // Save RPK file
-        let rpk_path = temp_dir.join(format!("{}.rpk", plugin_id));
-        std::fs::write(&rpk_path, rpk_data)?;
-
-        // Cache package files
-        rpk_processor
-            .cache_package_files(&package, &temp_dir.join("cache"))
+        self.rpk_processor
+            .install_rpk(&plugin_id, &version, rpk_data)
             .await?;
 
         // Create plugin record in database
         let manifest_json = serde_json::to_value(&package.manifest)?;
         let version = package.manifest.package.version.clone();
         let plugin_model = crate::entity::plugins::ActiveModel {
-            name: Set(plugin_id.clone()),
-            description: Set(package.manifest.package.description),
+            name: Set(plugin_id.to_string()),
+            plugin_id: Set(manifest_plugin_id),
+            description: Set(package.manifest.package.description.clone()),
             version: Set(version.clone()),
             enabled: Set(false),
             status: Set("disabled".to_string()),
@@ -292,17 +295,14 @@ impl PluginRegistry {
 
         // Analyze update (new installation)
         let analysis = crate::dto::plugin::PluginUpdateAnalysis {
-            plugin_id: plugin_id.clone(),
+            plugin_id: plugin_id.to_string(),
             current_version: "0.0.0".to_string(),
             new_version: version,
             status: crate::dto::plugin::PluginUpdateStatus::NeedsReview,
-            new_required_permissions: package.manifest.permissions.required,
+            new_required_permissions: package.manifest.permissions.required.clone(),
             new_optional_permissions: Vec::new(), // Optional permissions not used in new format
             message: "New plugin installation requires permission review".to_string(),
         };
-
-        // Cleanup
-        let _ = std::fs::remove_dir_all(&temp_dir);
 
         Ok((manifest_json, analysis))
     }
@@ -310,14 +310,14 @@ impl PluginRegistry {
     /// Uninstall a plugin
     pub async fn uninstall_plugin(
         &self,
-        plugin_name: &str,
+        plugin_id: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Remove from registry first
-        self.unregister_plugin(plugin_name).await?;
+        self.unregister_plugin(plugin_id).await?;
 
         // Remove from database
         crate::entity::plugins::Entity::delete_many()
-            .filter(crate::entity::plugins::Column::Name.eq(plugin_name))
+            .filter(crate::entity::plugins::Column::Name.eq(plugin_id))
             .exec(&*self.db)
             .await?;
 

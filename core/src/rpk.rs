@@ -57,22 +57,33 @@ impl RpkProcessor {
         Ok(())
     }
 
-    /// Install RPK package (only extracts and validates, caching is handled by caller)
+    /// Install RPK package (only saves to install directory)
     pub async fn install_rpk(
         &self,
         plugin_id: &str,
+        version: &str,
         rpk_data: &[u8],
-    ) -> Result<RpkPackage, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // 1. Save RPK file to install directory
-        let rpk_path = self.install_dir.join(format!("{}.rpk", plugin_id));
+        let rpk_path = self
+            .install_dir
+            .join(format!("{}-{}.rpk", plugin_id, version));
         fs::write(&rpk_path, rpk_data)?;
 
-        // 2. Extract and validate RPK
-        let package = self
-            .extract_and_validate(&rpk_path, Some(plugin_id))
-            .await?;
+        Ok(())
+    }
 
-        Ok(package)
+    pub async fn uninstall_rpk(
+        &self,
+        plugin_id: &str,
+        version: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let rpk_path = self
+            .install_dir
+            .join(format!("{}-{}.rpk", plugin_id, version));
+
+        fs::remove_file(&rpk_path)?;
+        Ok(())
     }
 
     /// Cache extracted package files to specified directory
@@ -147,6 +158,37 @@ impl RpkProcessor {
         if !files.contains_key("plugin.wasm") {
             return Err("plugin.wasm not found in RPK package".into());
         }
+
+        Ok(RpkPackage { manifest, files })
+    }
+
+    pub async fn read_package_from_reader(
+        &self,
+        reader: &mut std::io::Cursor<Vec<u8>>,
+    ) -> Result<RpkPackage, Box<dyn std::error::Error + Send + Sync>> {
+        let mut archive = ZipArchive::new(reader)?;
+        let mut manifest: Option<PluginManifest> = None;
+        let mut files = HashMap::new();
+
+        // Read through each file in the archive to find manifest.toml and collect files
+        for i in 0..archive.len() {
+            let mut file = archive.by_index(i)?;
+            let file_name = file.name().to_string();
+
+            // Read file content into a buffer
+            let mut content = Vec::new();
+            file.read_to_end(&mut content)?;
+
+            // Check for manifest.toml file
+            if file_name == "manifest.toml" {
+                let manifest_content = String::from_utf8(content.clone())?;
+                manifest = Some(toml::from_str(&manifest_content)?);
+            }
+
+            files.insert(file_name, content);
+        }
+
+        let manifest = manifest.ok_or("manifest.toml not found in RPK package")?;
 
         Ok(RpkPackage { manifest, files })
     }

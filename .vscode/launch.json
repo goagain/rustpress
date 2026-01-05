@@ -8,13 +8,9 @@
       "cargo": {
         "args": [
           "run",
-          "--bin=rustpress",
-          "--manifest-path=Cargo.toml"
-        ],
-        "filter": {
-          "name": "rustpress",
-          "kind": "bin"
-        }
+          "--package=rustpress-core",
+          "--bin=rustpress"
+        ]
       },
       "args": [],
       "cwd": "${workspaceFolder}",
@@ -23,7 +19,6 @@
       },
       "console": "integratedTerminal",
       "sourceLanguages": ["rust"],
-      "preLaunchTask": "cargo build"
     },
     {
       "type": "lldb",

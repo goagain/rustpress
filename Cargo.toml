@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "core", "rustpress-migration", "rustpress-cli", "rustpress-sdk"]
+members = [".", "core", "rustpress-migration", "rustpress-cli"]
 exclude = ["plugin_samples/*"]
 resolver = "3"
 

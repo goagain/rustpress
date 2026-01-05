@@ -1,0 +1,6 @@
+package rustpress:plugin;
+
+interface permissions {
+    list-permissions: func() -> list<string>;
+    permission-granted: func(permission: string) -> bool;
+}

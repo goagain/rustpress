@@ -3014,6 +3014,7 @@ dependencies = [
  "axum",
  "base64 0.21.7",
  "bcrypt",
+ "bytes",
  "chrono",
  "color-eyre",
  "dotenv",
@@ -3058,15 +3059,6 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "rustpress-sdk"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "log",
- "wit-bindgen 0.50.0",
 ]
 
 [[package]]

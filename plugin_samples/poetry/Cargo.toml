@@ -10,8 +10,8 @@ crate-type = ["cdylib"]
 
 [dependencies]
 anyhow = "1.0"
-rustpress-sdk = { path = "../../rustpress-sdk" }
 log = "0.4"
+wit-bindgen = "0.50.0"
 
 # 🔥 Rustpress Plugin Configuration
 # Uncomment and modify the following sections to configure your plugin

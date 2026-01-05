@@ -1,9 +1,0 @@
-[package]
-name = "rustpress-sdk"
-version.workspace = true
-edition.workspace = true
-
-[dependencies]
-wit-bindgen = "0.50.0"
-log = "0.4"
-anyhow = "1.0.100"

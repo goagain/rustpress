@@ -64,7 +64,7 @@ pub fn create_admin_router<
             "/plugins",
             get(get_all_plugins::<PR, UR, SB>).post(install_plugin::<PR, UR, SB>),
         )
-        .route("/plugins/upload", post(upload_plugin::<PR, UR, SB>))
+        .route("/plugins/upload", post(install_plugin::<PR, UR, SB>))
         .route(
             "/plugins/:id",
             put(update_plugin::<PR, UR, SB>).delete(uninstall_plugin::<PR, UR, SB>),

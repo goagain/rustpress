@@ -1,7 +1,6 @@
 use crate::dto::{
     AdminPluginEnableResponse, AdminPluginListResponse, AdminPluginUpdateRequest,
-    ApprovePluginPermissionsRequest, PluginInstallRequest, PluginPermissionsResponse,
-    UpdatePluginPermissionsRequest,
+    ApprovePluginPermissionsRequest, PluginPermissionsResponse, UpdatePluginPermissionsRequest,
 };
 use crate::repository::{PostRepository, UserRepository};
 use axum::{
@@ -9,7 +8,6 @@ use axum::{
     http::StatusCode,
     response::Json,
 };
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use std::sync::Arc;
 
@@ -46,6 +44,7 @@ pub async fn get_all_plugins<
         .into_iter()
         .map(|plugin| AdminPluginListResponse {
             id: plugin.id,
+            plugin_id: plugin.plugin_id,
             name: plugin.name,
             description: plugin.description,
             version: plugin.version,
@@ -144,6 +143,7 @@ pub async fn update_plugin<
     // Otherwise return normal response
     let plugin_response = AdminPluginListResponse {
         id: updated.id,
+        plugin_id: updated.plugin_id,
         name: updated.name.clone(),
         description: updated.description,
         version: updated.version,
@@ -199,14 +199,21 @@ pub async fn uninstall_plugin<
     Ok(StatusCode::OK)
 }
 
+/// Request body for plugin upload (multipart/form-data)
+#[derive(utoipa::ToSchema)]
+struct PluginUploadRequest {
+    /// RPK plugin file
+    plugin: String, // This represents the file field in multipart form
+}
+
 /// Install a new plugin
 #[utoipa::path(
     post,
-    path = "/api/admin/plugins",
-    request_body = PluginInstallRequest,
+    path = "/api/admin/plugins/upload",
+    request_body(content_type = "multipart/form-data", content = inline(PluginUploadRequest)),
     responses(
-        (status = 201, description = "Successfully installed plugin"),
-        (status = 400, description = "Invalid RPK file"),
+        (status = 200, description = "Successfully installed plugin"),
+        (status = 400, description = "Invalid RPK file or missing file field"),
         (status = 409, description = "Plugin already exists"),
         (status = 500, description = "Internal server error")
     ),
@@ -219,17 +226,31 @@ pub async fn install_plugin<
 >(
     State(state): State<Arc<crate::api::post_controller::ExtendedAppState<PR, UR, SB>>>,
     Extension(_current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
-    axum::Json(payload): axum::Json<PluginInstallRequest>,
-) -> Result<axum::http::StatusCode, StatusCode> {
-    // Decode base64 RPK data
-    let rpk_data = BASE64
-        .decode(&payload.rpk_data)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    mut multipart: Multipart,
+) -> Result<StatusCode, StatusCode> {
+    // Read RPK file from multipart form
+    let field = multipart
+        .next_field()
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to read multipart field: {}", e);
+            StatusCode::BAD_REQUEST
+        })?
+        .ok_or_else(|| {
+            tracing::error!("Missing RPK file field in multipart request");
+            StatusCode::BAD_REQUEST
+        })?;
+
+    // Get the raw bytes from the field (RPK files are binary)
+    let rpk_data = field.bytes().await.map_err(|e| {
+        tracing::error!("Failed to read RPK file data: {}", e);
+        StatusCode::BAD_REQUEST
+    })?;
 
     // Install plugin using plugin registry
     let (_manifest, _update_analysis) = state
         .plugin_registry
-        .install_plugin(&rpk_data, &payload.permission_grants)
+        .install_plugin(&rpk_data)
         .await
         .map_err(|e| {
             tracing::error!("Failed to install plugin: {}", e);
@@ -338,25 +359,24 @@ pub async fn get_plugin_permissions<
     }
 
     // If no permissions defined in manifest, check hooks for implicit permissions
-    if permissions.is_empty() {
-        if let Some(hooks) = manifest
+    if permissions.is_empty()
+        && let Some(hooks) = manifest
             .get("hooks")
             .and_then(|h| h.get("registered"))
             .and_then(|r| r.as_array())
-        {
-            for hook in hooks {
-                if let Some(hook_str) = hook.as_str() {
-                    // Get required permission for this hook
-                    if let Some(required_perm) =
-                        crate::plugin::hook_registry::HookRegistry::get_hook_permission(hook_str)
-                    {
-                        permissions.push(crate::dto::plugin::PluginPermissionInfo {
-                            permission: required_perm.clone(),
-                            is_granted: true, // Hook-registered permissions are granted
-                            permission_type: "required".to_string(),
-                            description: get_permission_description(&required_perm),
-                        });
-                    }
+    {
+        for hook in hooks {
+            if let Some(hook_str) = hook.as_str() {
+                // Get required permission for this hook
+                if let Some(required_perm) =
+                    crate::plugin::hook_registry::HookRegistry::get_hook_permission(hook_str)
+                {
+                    permissions.push(crate::dto::plugin::PluginPermissionInfo {
+                        permission: required_perm.clone(),
+                        is_granted: true, // Hook-registered permissions are granted
+                        permission_type: "required".to_string(),
+                        description: get_permission_description(&required_perm),
+                    });
                 }
             }
         }
@@ -487,151 +507,6 @@ pub async fn review_plugin_permissions<
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     tracing::info!("Plugin '{}' permissions approved and enabled", plugin_id);
-
-    Ok(StatusCode::OK)
-}
-
-/// Upload and install a plugin from RPK file
-#[utoipa::path(
-    post,
-    path = "/api/admin/plugins/upload",
-    responses(
-        (status = 200, description = "Plugin uploaded and installed successfully"),
-        (status = 400, description = "Invalid RPK file"),
-        (status = 500, description = "Internal server error")
-    ),
-    tag = "Admin"
-)]
-pub async fn upload_plugin<
-    PR: PostRepository,
-    UR: UserRepository,
-    SB: crate::storage::StorageBackend,
->(
-    State(state): State<Arc<crate::api::post_controller::ExtendedAppState<PR, UR, SB>>>,
-    Extension(_current_user): Extension<Arc<crate::auth::middleware::CurrentUser>>,
-    mut multipart: Multipart,
-) -> Result<StatusCode, StatusCode> {
-    tracing::info!("Plugin upload request received");
-
-    // Get database connection from state
-    let db = state.db.clone();
-
-    // Extract the uploaded file
-    let mut rpk_data: Option<Vec<u8>> = None;
-
-    tracing::info!("Processing multipart fields {:?}", multipart);
-    while let Some(field) = multipart
-        .next_field()
-        .await
-        .map_err(|_| StatusCode::BAD_REQUEST)?
-    {
-        let field_name = field.name().unwrap_or("").to_string();
-
-        if field_name == "plugin" {
-            tracing::info!("Found plugin field: {}", field_name);
-            rpk_data = Some(
-                field
-                    .bytes()
-                    .await
-                    .map_err(|_| StatusCode::BAD_REQUEST)?
-                    .to_vec(),
-            );
-            tracing::info!(
-                "File data extracted, size: {} bytes",
-                rpk_data.as_ref().unwrap().len()
-            );
-            break;
-        } else {
-            tracing::info!("Found unknown field: {}", field_name);
-        }
-    }
-
-    let rpk_data = rpk_data.ok_or(StatusCode::BAD_REQUEST)?;
-
-    // Validate RPK file (basic check - should be ZIP format)
-    if rpk_data.len() < 4 || &rpk_data[0..4] != b"PK\x03\x04" {
-        return Err(StatusCode::BAD_REQUEST); // Not a ZIP file
-    }
-
-    // Extract plugin ID from RPK (we need to parse it)
-    // For now, we'll use a temporary plugin manager to extract the manifest
-    let temp_dir = std::env::temp_dir().join("rustpress_plugin_upload");
-    if temp_dir.exists() {
-        std::fs::remove_dir_all(&temp_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    }
-    std::fs::create_dir_all(&temp_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let rpk_processor = crate::rpk::RpkProcessor::new(temp_dir.clone(), temp_dir.join("cache"));
-    rpk_processor
-        .init()
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    // Write RPK data to temporary file for validation
-    let temp_rpk_path = temp_dir.join("temp.rpk");
-    std::fs::write(&temp_rpk_path, &rpk_data).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    // Extract and validate RPK
-    let package = rpk_processor
-        .extract_and_validate(&temp_rpk_path, None)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to validate RPK: {}", e);
-            StatusCode::BAD_REQUEST
-        })?;
-
-    let plugin_id = &package.manifest.package.id;
-
-    // Check if plugin already exists
-    let existing_plugin = plugins::Entity::find()
-        .filter(plugins::Column::Name.eq(plugin_id))
-        .one(&*db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    if existing_plugin.is_some() {
-        // Cleanup
-        let _ = std::fs::remove_dir_all(&temp_dir);
-        return Err(StatusCode::CONFLICT); // Plugin already exists
-    }
-
-    // Save RPK file to install directory
-    let install_dir = temp_dir.clone(); // Use temp dir for now
-    let rpk_path = install_dir.join(format!("{}.rpk", plugin_id));
-    std::fs::write(&rpk_path, &rpk_data).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    // Cache the package files
-    rpk_processor
-        .cache_package_files(&package, &install_dir.join("cache"))
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to cache package files: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-    // Install plugin using plugin registry
-    let (_manifest, _update_analysis) = state
-        .plugin_registry
-        .install_plugin(&rpk_data, &std::collections::HashMap::new())
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to install plugin: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-    // Cleanup temp directory
-    let _ = std::fs::remove_dir_all(&temp_dir);
-
-    // Reload plugins to register hooks for the newly installed plugin
-    state
-        .plugin_registry
-        .load_enabled_plugins()
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to reload plugins after installation: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-    tracing::info!("Plugin '{}' uploaded and installed successfully", plugin_id);
 
     Ok(StatusCode::OK)
 }

@@ -5,9 +5,9 @@
   "rust-analyzer.inlayHints.parameterHints.enable": true,
   "rust-analyzer.cargo.features": "all",
   "rust-analyzer.debug.openDebugPane": true,
-  "rust-analyzer.debug.sourceFileMap": {
-    "/rustc/<id>": "${env:USERPROFILE}/.rustup/toolchains/<toolchain>/lib/rustlib/src/rust"
-  },
+  "lldb.displayFormat": "auto",
+  "lldb.showDisassembly": "never",
+  "lldb.dereferencePointers": false,
   "lldb.verboseLogging": false,
   "rust-analyzer.debug.engine": "auto",
   "rust-analyzer.debug.engineSettings": {
@@ -15,14 +15,12 @@
       "terminal": "integrated"
     }
   },
-  
   // Files to exclude from search
   "files.exclude": {
     "**/target": true,
     "**/node_modules": true,
     "**/.git": true
   },
-  
   // Search exclude patterns
   "search.exclude": {
     "**/target": true,
@@ -30,7 +28,6 @@
     "**/Cargo.lock": true,
     "**/package-lock.json": true
   },
-  
   // Editor settings
   "[rust]": {
     "editor.defaultFormatter": "rust-lang.rust-analyzer",

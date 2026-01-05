@@ -71,6 +71,7 @@ pub struct AdminResetPasswordResponse {
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct AdminPluginListResponse {
     pub id: i64,
+    pub plugin_id: String,
     pub name: String,
     pub description: Option<String>,
     pub version: String,
