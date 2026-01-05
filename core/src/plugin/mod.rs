@@ -9,8 +9,6 @@ pub mod permissions;
 pub mod registry;
 pub mod types;
 
-use sea_orm::DatabaseConnection;
-use std::sync::Arc;
 use wasmtime_wasi::{ResourceTable, WasiCtx};
 
 wasmtime::component::bindgen!({

@@ -1,6 +1,6 @@
 package rustpress:plugin;
 
-interface hooks {
+interface post-hooks {
     record on-post-published-data {
         title: string,
         content: string,
@@ -14,5 +14,4 @@ interface hooks {
     }
 
     on-post-published: func(post: on-post-published-data) -> result<on-post-published-data>;
-    list-categories: func() -> list<category-info>;
 }

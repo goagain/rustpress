@@ -1,5 +1,5 @@
 use crate::{
-    dto::CreatePostRequest, plugin::exports::rustpress::plugin::hooks::OnPostPublishedData,
+    dto::CreatePostRequest, plugin::exports::rustpress::plugin::post_hooks::OnPostPublishedData,
 };
 
 impl From<OnPostPublishedData> for CreatePostRequest {

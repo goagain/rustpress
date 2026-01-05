@@ -1,7 +1,7 @@
 //! Plugin Registry - Manages loaded plugins and their hook mappings
 
 use crate::plugin::engine::PluginEngine;
-use crate::plugin::exports::rustpress::plugin::hooks::OnPostPublishedData;
+use crate::plugin::exports::rustpress::plugin::post_hooks::OnPostPublishedData;
 use crate::plugin::loaded_plugin::LoadedPlugin;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use std::collections::HashMap;
@@ -440,7 +440,7 @@ impl PluginExecuter {
         for plugin in plugins {
             let (store, bindings) = self.get_bindings(&plugin).await?;
             modified_data = match bindings
-                .rustpress_plugin_hooks()
+                .rustpress_plugin_post_hooks()
                 .call_on_post_published(store, &modified_data)
                 .await
             {
@@ -456,7 +456,7 @@ impl PluginExecuter {
                     }
                 },
                 Err(e) => {
-                    return Err(e.into());
+                    return Err(e);
                 }
             }
         }
