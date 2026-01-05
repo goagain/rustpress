@@ -134,14 +134,14 @@ impl RpkProcessor {
         let manifest = manifest.ok_or("manifest.toml not found in RPK package")?;
 
         // Validate manifest matches expected plugin_id (if provided)
-        if let Some(expected_id) = expected_plugin_id
-            && manifest.package.id != expected_id
-        {
-            return Err(format!(
-                "Manifest ID '{}' does not match expected plugin ID '{}'",
-                manifest.package.id, expected_id
-            )
-            .into());
+        if let Some(expected_id) = expected_plugin_id {
+            if manifest.package.id != expected_id {
+                return Err(format!(
+                    "Manifest ID '{}' does not match expected plugin ID '{}'",
+                    manifest.package.id, expected_id
+                )
+                .into());
+            }
         }
         // Validate required files exist
         if !files.contains_key("plugin.wasm") {

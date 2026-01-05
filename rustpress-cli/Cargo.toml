@@ -1,0 +1,9 @@
+[package]
+name = "rustpress-cli"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+clap = { version = "4.0", features = ["derive"] }
+anyhow = "1.0"
+colored = "2.0"

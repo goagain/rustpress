@@ -9,3 +9,5 @@ pub mod repository;
 pub mod rpk;
 pub mod seed;
 pub mod storage;
+
+pub mod app;

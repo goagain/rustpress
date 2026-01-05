@@ -409,8 +409,6 @@ impl PluginExecuter {
         Ok(super::PluginHostState::new(
             plugin.plugin_id.clone(),
             plugin.granted_permissions.clone(),
-            self.ai_client.clone(),
-            self.db.clone(),
         ))
     }
 
@@ -422,11 +420,11 @@ impl PluginExecuter {
         let linker = self.registry.engine.get_linker();
         let state = self.new_state(plugin)?;
         let component = plugin.component.as_ref().unwrap();
-        let mut store = wasmtime::Store::new(&engine, state);
+        let mut store = wasmtime::Store::new(engine, state);
         let (bindings, _) =
-            super::PluginWorld::instantiate_async(&mut store, &component, &linker).await?;
+            super::PluginWorld::instantiate_async(&mut store, component, &linker).await?;
 
-        return Ok((store, bindings));
+        Ok((store, bindings))
     }
     pub async fn post_published_filter(
         &self,

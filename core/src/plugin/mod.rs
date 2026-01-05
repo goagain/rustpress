@@ -15,7 +15,7 @@ use wasmtime_wasi::{ResourceTable, WasiCtx};
 
 wasmtime::component::bindgen!({
     world: "plugin-world",
-    path: "wit",
+    path: "../wit",
     async: true
 });
 
@@ -24,18 +24,11 @@ pub struct PluginHostState {
     table: ResourceTable,
     plugin_id: String,
     granted_permissions: std::collections::HashSet<String>,
-    ai_client: Option<Arc<ai::AiHelper>>,
-    db: Arc<DatabaseConnection>,
 }
 
 impl PluginHostState {
     /// Create a new plugin host state
-    pub fn new(
-        plugin_id: String,
-        granted_permissions: std::collections::HashSet<String>,
-        ai_client: Option<Arc<ai::AiHelper>>,
-        db: Arc<DatabaseConnection>,
-    ) -> Self {
+    pub fn new(plugin_id: String, granted_permissions: std::collections::HashSet<String>) -> Self {
         let ctx = wasmtime_wasi::WasiCtxBuilder::new()
             .inherit_stderr()
             .inherit_stdout()
@@ -47,8 +40,6 @@ impl PluginHostState {
             table,
             plugin_id,
             granted_permissions,
-            ai_client,
-            db,
         }
     }
 }
