@@ -1,0 +1,25 @@
+package rustpress:plugin;
+
+interface event-handler {
+    handle-filter: func(event: plugin-filter-event) -> result<plugin-filter-event, string>;
+    handle-action: func(event: plugin-action-event);
+    variant plugin-filter-event {
+        on-post-published-filter(on-post-published-data),
+        unknown
+    }
+
+    variant plugin-action-event {
+        unknown
+    }
+
+    record on-post-published-data {
+        title: string,
+        content: string,
+        category: option<string>,
+        author-id: s64,
+        description: option<string>,
+    }
+
+    record unknown {}
+}
+

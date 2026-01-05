@@ -1,5 +1,5 @@
 use crate::{
-    dto::CreatePostRequest, plugin::exports::rustpress::plugin::post_hooks::OnPostPublishedData,
+    dto::CreatePostRequest, plugin::exports::rustpress::plugin::event_handler::OnPostPublishedData,
 };
 
 impl From<OnPostPublishedData> for CreatePostRequest {
@@ -9,6 +9,7 @@ impl From<OnPostPublishedData> for CreatePostRequest {
             content: data.content,
             category: data.category.clone(),
             author_id: data.author_id,
+            description: data.description,
         }
     }
 }
@@ -20,6 +21,7 @@ impl From<CreatePostRequest> for OnPostPublishedData {
             content: data.content,
             category: data.category.clone(),
             author_id: data.author_id,
+            description: data.description,
         }
     }
 }

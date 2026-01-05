@@ -12,6 +12,7 @@ pub struct Model {
     pub content: String,
     pub category: Option<String>,
     pub author_id: i64,
+    pub description: Option<String>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
     pub archived_at: Option<DateTimeWithTimeZone>,

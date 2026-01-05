@@ -4,6 +4,9 @@ use crate::dto::{
     PostDraftResponse, PostResponse, PostVersionResponse, RefreshTokenRequest,
     RefreshTokenResponse, SaveDraftRequest, UpdatePostRequest, UserResponse, UserRole,
 };
+use crate::plugin::exports::rustpress::plugin::event_handler::{
+    OnPostPublishedData, PluginFilterEvent,
+};
 use crate::repository::{PostRepository, UserRepository};
 use axum::{
     extract::{Extension, Path, State},
@@ -149,16 +152,29 @@ pub async fn create_post<
     // User must be authenticated (already checked by middleware)
 
     // Parse JSON payload into initial_post_data (dto::post::Post)
-    let initial_post_data: CreatePostRequest = payload.into();
+    let mut initial_post_data: CreatePostRequest = payload.into();
+    initial_post_data.author_id = current_user.id;
+
     let filtered_post_data = state
         .plugin_executer
-        .post_published_filter(initial_post_data)
+        .call_filter_hook(
+            "filter_post_published",
+            &PluginFilterEvent::OnPostPublishedFilter(OnPostPublishedData::from(initial_post_data)),
+        )
         .await;
 
     let filtered_post_data = match filtered_post_data {
-        Ok(filtered_post_data) => filtered_post_data,
+        Ok(plugin_event) => match plugin_event {
+            PluginFilterEvent::OnPostPublishedFilter(on_post_published_data) => {
+                on_post_published_data
+            }
+            PluginFilterEvent::Unknown => {
+                tracing::error!("Plugin returned unknown filter event");
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        },
         Err(e) => {
-            tracing::error!("Error calling post_published_filter: {:?}", e);
+            tracing::error!("Error calling filter_post_published: {:?}", e);
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
@@ -166,7 +182,7 @@ pub async fn create_post<
     let post = state
         .app_state
         .post_repository
-        .create(filtered_post_data)
+        .create(filtered_post_data.into())
         .await
         .map_err(|e| {
             tracing::error!("Error creating post: {:?}", e);
@@ -230,6 +246,7 @@ pub async fn update_post<
         content: payload.content.unwrap_or(existing_post.content),
         category: payload.category.or(existing_post.category),
         author_id: existing_post.author_id,
+        description: existing_post.description,
         created_at: existing_post.created_at,
         updated_at: existing_post.updated_at, // Placeholder value, actually updated automatically by ActiveModelBehavior
         archived_at: existing_post.archived_at,

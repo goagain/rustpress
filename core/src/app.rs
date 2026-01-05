@@ -1,5 +1,7 @@
 use crate::api::create_router;
-use crate::repository::{PostRepository, PostgresPostRepository, PostgresUserRepository, UserRepository};
+use crate::repository::{
+    PostRepository, PostgresPostRepository, PostgresUserRepository, UserRepository,
+};
 use sea_orm::{Database, DbErr};
 use std::sync::Arc;
 
@@ -81,12 +83,14 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Create post repository for plugins
     let postgres_post_repo = Arc::new(crate::repository::PostgresPostRepository::new(db.clone()));
 
-    let plugin_engine = Arc::new(crate::plugin::engine::PluginEngine::new().expect("Failed to create plugin engine"));
+    let plugin_engine = Arc::new(
+        crate::plugin::engine::PluginEngine::new().expect("Failed to create plugin engine"),
+    );
 
     // Initialize plugin system
     let plugin_registry = Arc::new(crate::plugin::registry::PluginRegistry::new(
         plugin_engine,
-        Arc::new(db.clone())
+        Arc::new(db.clone()),
     ));
 
     let plugin_executer = Arc::new(crate::plugin::registry::PluginExecuter::new(
@@ -152,15 +156,17 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     tracing::info!("");
     tracing::info!("💡 Frontend should run on http://localhost:5173 (Vite dev server)");
 
-    axum::serve(listener, app).await.map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(format!("Server error: {}", e)))?;
+    axum::serve(listener, app).await.map_err(|e| {
+        Box::<dyn std::error::Error + Send + Sync>::from(format!("Server error: {}", e))
+    })?;
 
     Ok(())
 }
 
 /// Run SeaORM migrations
 async fn run_migrations(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr> {
-    use sea_orm_migration::MigratorTrait;
     use rustpress_migration::Migrator;
+    use sea_orm_migration::MigratorTrait;
     Migrator::up(db, None).await
 }
 
@@ -255,8 +261,9 @@ async fn init_sample_post<PR: PostRepository>(post_repository: &PR, author_id: i
     let create_request = CreatePostRequest {
         title: sample_post.title,
         content: sample_post.content,
-        category: Some(sample_post.category),
+        category: sample_post.category.clone(),
         author_id,
+        description: sample_post.description.clone(),
     };
 
     match post_repository.create(create_request).await {
@@ -264,6 +271,7 @@ async fn init_sample_post<PR: PostRepository>(post_repository: &PR, author_id: i
             tracing::info!("✅ Sample post created successfully");
             tracing::info!("   Title: {}", post.title);
             tracing::info!("   Category: {:?}", post.category);
+            tracing::info!("   Description: {:?}", post.description);
             tracing::info!("   Post ID: {}", post.id);
         }
         Err(e) => {

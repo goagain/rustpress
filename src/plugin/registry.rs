@@ -1,9 +1,7 @@
 //! Plugin Registry - Manages loaded plugins and their hook mappings
 
 use crate::plugin::engine::PluginEngine;
-use crate::plugin::exports::rustpress::plugin::event_handler::{
-    OnPostPublishedData, PluginFilterEvent,
-};
+use crate::plugin::exports::rustpress::plugin::hooks::OnPostPublishedData;
 use crate::plugin::loaded_plugin::LoadedPlugin;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use std::collections::HashMap;
@@ -411,6 +409,8 @@ impl PluginExecuter {
         Ok(super::PluginHostState::new(
             plugin.plugin_id.clone(),
             plugin.granted_permissions.clone(),
+            self.ai_client.clone(),
+            self.db.clone(),
         ))
     }
 
@@ -422,61 +422,46 @@ impl PluginExecuter {
         let linker = self.registry.engine.get_linker();
         let state = self.new_state(plugin)?;
         let component = plugin.component.as_ref().unwrap();
-        let mut store = wasmtime::Store::new(engine, state);
+        let mut store = wasmtime::Store::new(&engine, state);
         let (bindings, _) =
-            super::PluginWorld::instantiate_async(&mut store, component, &linker).await?;
+            super::PluginWorld::instantiate_async(&mut store, &component, &linker).await?;
 
-        Ok((store, bindings))
+        return Ok((store, bindings));
     }
-    pub async fn call_filter_hook(
+    pub async fn post_published_filter(
         &self,
-        hook_name: &str,
-        data: &PluginFilterEvent,
-    ) -> anyhow::Result<PluginFilterEvent> {
-        let plugins = self.registry.get_plugins_for_hook(hook_name).await;
+        data: crate::dto::post::CreatePostRequest,
+    ) -> anyhow::Result<crate::dto::post::CreatePostRequest> {
+        let plugins = self
+            .registry
+            .get_plugins_for_hook("post_published_filter")
+            .await;
 
-        let mut modified_data = data.clone();
+        let mut modified_data: OnPostPublishedData = data.into();
+
         for plugin in plugins {
             let (store, bindings) = self.get_bindings(&plugin).await?;
             modified_data = match bindings
-                .rustpress_plugin_event_handler()
-                .call_handle_filter(store, &modified_data)
+                .rustpress_plugin_hooks()
+                .call_on_post_published(store, &modified_data)
                 .await
             {
-                Ok(plugin_result) => match plugin_result {
-                    Ok(plugin_result) => plugin_result,
+                Ok(new_result) => match new_result {
+                    Ok(new_result) => new_result,
                     Err(e) => {
                         tracing::error!(
-                            "Plugin {} returned error for {} filter hook: {}",
+                            "Error calling on_post_published_filter for plugin {}: {:?}",
                             plugin.plugin_id,
-                            hook_name,
                             e
                         );
-                        // Return a 500 error if a plugin returned an error
-                        return Err(anyhow::anyhow!(
-                            "Plugin {} returned error for {} filter hook: {}",
-                            plugin.plugin_id,
-                            hook_name,
-                            e
-                        ));
+                        modified_data
                     }
                 },
                 Err(e) => {
-                    tracing::error!(
-                        "Error calling {} filter hook for plugin {}: {:?}",
-                        hook_name,
-                        plugin.plugin_id,
-                        e
-                    );
-                    // Return a 500 error if a plugin returned an error
-                    return Err(anyhow::anyhow!(
-                        "Plugin {} returned error: {}",
-                        plugin.plugin_id,
-                        e
-                    ));
+                    return Err(e.into());
                 }
             }
         }
-        Ok(data.clone())
+        Ok(modified_data.into())
     }
 }

@@ -12,6 +12,7 @@ pub struct Post {
     pub content: String,
     pub category: Option<String>,
     pub author_id: i64,
+    pub description: Option<String>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
     pub archived_at: Option<DateTimeWithTimeZone>,
@@ -26,6 +27,7 @@ pub struct CreatePostRequest {
     #[serde(default)]
     pub category: Option<String>,
     pub author_id: i64,
+    pub description: Option<String>,
 }
 
 /// Request DTO for updating a post
@@ -60,8 +62,9 @@ impl From<posts::Model> for Post {
             content: model.content,
             category: model.category,
             author_id: model.author_id,
-            created_at: model.created_at.into(),
-            updated_at: model.updated_at.into(),
+            description: model.description,
+            created_at: model.created_at,
+            updated_at: model.updated_at,
             archived_at: model.archived_at,
             deleted_at: model.deleted_at,
         }

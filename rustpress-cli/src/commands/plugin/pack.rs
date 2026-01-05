@@ -3,8 +3,8 @@ use colored::*;
 use std::fs;
 use std::io::Write;
 use std::path::Path;
-use zip::write::FileOptions;
 use zip::ZipWriter;
+use zip::write::FileOptions;
 
 use super::build;
 
@@ -12,8 +12,8 @@ pub fn pack_plugin(release: &bool, output_dir: &Option<String>) -> Result<()> {
     println!("{}", "Packing Rustpress plugin...".cyan().bold());
 
     // First build the plugin
-    let plugin_name = build::build_plugin(release)
-        .with_context(|| "Failed to build plugin before packing")?;
+    let plugin_name =
+        build::build_plugin(release).with_context(|| "Failed to build plugin before packing")?;
 
     println!("  📦 Creating RPK package...");
 
@@ -48,14 +48,13 @@ pub fn pack_plugin(release: &bool, output_dir: &Option<String>) -> Result<()> {
 
     // Add manifest.toml
     zip.start_file("manifest.toml", options)?;
-    let manifest_content = fs::read("manifest.toml")
-        .with_context(|| "Failed to read manifest.toml")?;
+    let manifest_content =
+        fs::read("manifest.toml").with_context(|| "Failed to read manifest.toml")?;
     zip.write_all(&manifest_content)?;
 
     // Add plugin.wasm
     zip.start_file("plugin.wasm", options)?;
-    let wasm_content = fs::read("plugin.wasm")
-        .with_context(|| "Failed to read plugin.wasm")?;
+    let wasm_content = fs::read("plugin.wasm").with_context(|| "Failed to read plugin.wasm")?;
     zip.write_all(&wasm_content)?;
 
     // Finish the ZIP file
@@ -73,7 +72,10 @@ pub fn pack_plugin(release: &bool, output_dir: &Option<String>) -> Result<()> {
 
     println!();
     println!("Next steps:");
-    println!("  1. Upload {} to your Rustpress instance", rpk_path.display());
+    println!(
+        "  1. Upload {} to your Rustpress instance",
+        rpk_path.display()
+    );
     println!("  2. Install via admin panel or API");
 
     Ok(())

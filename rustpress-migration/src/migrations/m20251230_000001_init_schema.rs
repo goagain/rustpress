@@ -128,6 +128,7 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Posts::Content).text().not_null())
                     .col(ColumnDef::new(Posts::Category).string().null())
                     .col(ColumnDef::new(Posts::AuthorId).big_integer().not_null())
+                    .col(ColumnDef::new(Posts::Description).string().null())
                     .col(
                         ColumnDef::new(Posts::CreatedAt)
                             .timestamp_with_time_zone()
@@ -298,6 +299,7 @@ enum Posts {
     Content,
     Category,
     AuthorId,
+    Description,
     CreatedAt,
     UpdatedAt,
     ArchivedAt,
