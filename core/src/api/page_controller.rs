@@ -18,8 +18,14 @@ pub async fn serve_admin_spa() -> impl IntoResponse {
     // Serve admin index.html for admin SPA routing
     match tokio::fs::read_to_string("admin-frontend/dist/index.html").await {
         Ok(html) => Html(html).into_response(),
-        Err(_) => (StatusCode::NOT_FOUND, "admin index.html not found").into_response(),
+        Err(e) => {
+            tracing::error!("Failed to read admin-frontend/dist/index.html: {:?}", e);
+            (
+                StatusCode::NOT_FOUND,
+                "admin-frontend/dist/index.html not found",
+            )
+                .into_response()
+        }
     }
 }
 // This module is kept for future SSR support
-

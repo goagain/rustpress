@@ -16,7 +16,7 @@ if (!container) {
 
 const root = createRoot(container);
 root.render(
-  <BrowserRouter>
+  <BrowserRouter basename="/admin">
     <Routes>
       <Route path="/" element={<AuthenticatedApp />}>
         <Route index element={<Navigate to="/settings/general" replace />} />

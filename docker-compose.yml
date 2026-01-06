@@ -37,6 +37,7 @@ services:
       - "3000:3000"
     volumes:
       - uploads_data:/app/uploads
+      - ./installed_plugins:/app/installed_plugins
     depends_on:
       postgres:
         condition: service_healthy

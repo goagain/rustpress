@@ -217,6 +217,8 @@ Only after explicit approval does the plugin become active with the new permissi
 
 ### Hook System
 
+> ⚠️ **Important**: Current version limitation - Hook registration does **NOT** enforce permission checks. Plugins only need to declare hooks in their manifest to receive events. This is a known limitation that will be addressed in future versions.
+
 Plugins can hook into system events using actions and filters:
 
 #### Actions (Asynchronous, Non-blocking)
@@ -239,6 +241,8 @@ RustPress implements a **Host-Side Truth** security model to prevent data leakag
 
 #### Hook Permission Requirements
 
+> ⚠️ **Note**: The permission requirements listed below are **planned for future implementation**. Currently, hooks are called based solely on manifest declarations without permission validation.
+
 Each hook is explicitly defined with its permission requirements:
 
 | Hook | Required Permission | Data Exposure | Description |
@@ -251,13 +255,18 @@ Each hook is explicitly defined with its permission requirements:
 | `action_system_startup` | None | None | Pure notification, no data |
 | `action_system_shutdown` | None | None | Pure notification, no data |
 
-#### Security Validation Process
+#### Security Validation Process (Future Implementation)
 
+> **Current Status**: Security validation is not yet implemented. All declared hooks are registered and called regardless of permissions.
+
+**Planned Implementation:**
 1. **Installation Time**: Plugin manifest is validated against hook registry
 2. **Load Time**: Only hooks with proper permissions are registered
 3. **Runtime**: Permission checks on every API call
 
-**Example Security Violation Prevention:**
+**Example Security Violation Prevention (Future Implementation):**
+
+> **Current Status**: The following malicious plugin would currently be allowed to register hooks without proper permissions.
 
 ```toml
 # Malicious plugin tries to register hook without permission
@@ -270,10 +279,10 @@ permissions = []
 [optional_permissions]
 # Even if optional, not granted
 
-hooks = ["action_post_published"] # ❌ SECURITY VIOLATION
+hooks = ["action_post_published"] # ⚠️ CURRENTLY ALLOWED (will be blocked in future)
 ```
 
-**Result**: Installation fails with `PluginSecurityViolation` error.
+**Future Result**: Installation will fail with `PluginSecurityViolation` error.
 
 #### Plugin API with Security
 
@@ -300,6 +309,144 @@ match host_api.ai_chat(messages).await {
 - `ai_chat(messages)` - Use AI features (requires `ai:*` permissions)
 - `get_settings(keys)` - Read settings (requires `settings:read`)
 - `update_settings(settings)` - Modify settings (requires `settings:write`)
+
+### Plugin Development
+
+RustPress provides a command-line tool `cargo-rustpress` for plugin development, allowing you to create, build, and package plugins easily.
+
+#### Prerequisites
+
+Before developing plugins, ensure you have:
+
+- **Rust toolchain**: Install from [rustup.rs](https://rustup.rs/)
+- **wasm32-wasip2 target**: Install with `rustup target add wasm32-wasip2`
+- **cargo-rustpress**: Build from source or install from crates.io
+
+```bash
+# Install wasm32-wasip2 target
+rustup target add wasm32-wasip2
+
+# Build rustpress-cli (optional, if not using pre-built binary)
+cargo build --release --bin cargo-rustpress
+```
+
+#### Creating a New Plugin
+
+Use the `cargo rustpress plugin new` command to create a new plugin from template:
+
+```bash
+cargo rustpress plugin new my_plugin
+```
+
+This command creates:
+- Complete project structure with Cargo.toml
+- Plugin source code (`src/lib.rs`)
+- WIT interface definitions (`wit/`)
+- Logger utilities (`src/logger.rs`)
+- README and configuration files
+
+The generated plugin includes:
+- Basic hook registration
+- Permission declarations
+- Example implementations for common hooks
+- Ready-to-build structure
+
+#### Building Plugins
+
+Navigate to your plugin directory and build:
+
+```bash
+cd my_plugin
+
+# Debug build
+cargo rustpress plugin build
+
+# Release build (optimized)
+cargo rustpress plugin build --release
+```
+
+The build process:
+1. Compiles your plugin to WebAssembly (wasm32-wasip2 target)
+2. Generates `manifest.toml` from your `Cargo.toml` metadata
+3. Creates `plugin.wasm` binary
+
+#### Packaging Plugins
+
+Package your built plugin into an RPK file for distribution:
+
+```bash
+# Debug build and pack
+cargo rustpress plugin pack
+
+# Release build and pack
+cargo rustpress plugin pack --release
+
+# Pack to specific directory
+cargo rustpress plugin pack --release --output-dir ./dist
+```
+
+The RPK package contains:
+- `manifest.toml`: Plugin metadata and permissions
+- `plugin.wasm`: Compiled WebAssembly binary
+- Additional assets (future use)
+
+#### Plugin Configuration
+
+Configure your plugin through `Cargo.toml`:
+
+```toml
+[package]
+name = "my_plugin"
+version = "1.0.0"
+description = "My awesome plugin"
+
+[package.metadata.rustpress]
+# Plugin title (optional)
+title = "My Awesome Plugin"
+# Plugin package ID
+package-id = "com.example.my_plugin"
+# Plugin icon (future use)
+icon = "icon.png"
+# Registered hooks (currently called without permission checks)
+hooks = ["action_post_published", "filter_post_content"]
+# Permissions
+[package.metadata.rustpress.permissions]
+required = ["post:read"]
+optional = ["ai:summary", "upload:write"]
+```
+
+#### Example Plugin Structure
+
+```
+my_plugin/
+├── Cargo.toml          # Plugin configuration and metadata
+├── src/
+│   ├── lib.rs          # Main plugin code
+│   └── logger.rs       # Logging utilities
+├── wit/                # WebAssembly Interface Types
+│   ├── world.wit
+│   ├── hooks.wit
+│   └── ...
+├── README.md           # Plugin documentation
+└── .gitignore
+```
+
+#### Next Steps After Packaging
+
+Once you have your `.rpk` file:
+
+1. **Upload to RustPress**: Use the admin interface or API to upload your plugin
+2. **Grant Permissions**: Configure optional permissions through the admin panel
+3. **Enable Plugin**: Activate your plugin to start using it
+4. **Monitor**: Check logs and metrics for plugin activity
+
+#### Development Tips
+
+- **Test Locally**: Use `cargo test` to run unit tests
+- **Debug Builds**: Use debug builds during development for better error messages
+- **Permission Testing**: Test with different permission combinations
+- **Hook Registration**: Ensure your hooks are properly registered in the manifest
+- **Error Handling**: Implement proper error handling for permission denials
 
 ### Installation & Management
 
@@ -395,7 +542,7 @@ match host_api.ai_chat(messages) {
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/goagain/rustpress
    cd rustpress
    ```
 
@@ -407,14 +554,29 @@ match host_api.ai_chat(messages) {
 
 3. **Configure environment variables**
    ```bash
-   # Create a .env file
+   # Create a .env file (optional, can also use environment variables directly)
    DATABASE_URL=postgres://postgres:password@localhost:5432/rustpress
    JWT_SECRET=your-secret-key-change-in-production
    ROOT_PASSWORD=changeme
    STORAGE_DIR=uploads
    STORAGE_BASE_URL=http://localhost:3000/uploads
    RUST_LOG=info
+   METRICS_USERNAME=admin
+   METRICS_PASSWORD=metrics_password
    ```
+
+   ### Environment Variables Reference
+
+   | Variable | Required | Default | Description |
+   |----------|----------|---------|-------------|
+   | `DATABASE_URL` | ✅ | `postgres://postgres:password@localhost:5432/rustpress` | PostgreSQL connection string |
+   | `JWT_SECRET` | ✅ | `your-secret-key-change-in-production` | JWT secret key for authentication tokens |
+   | `ROOT_PASSWORD` | ❌ | `changeme` | Root user password (auto-generated if not set) |
+   | `STORAGE_DIR` | ❌ | `uploads` | Directory for uploaded files |
+   | `STORAGE_BASE_URL` | ❌ | `http://localhost:3000/uploads` | Base URL for accessing uploaded files |
+   | `RUST_LOG` | ❌ | `info` | Log level (trace, debug, info, warn, error) |
+   | `METRICS_USERNAME` | ❌ | - | Username for Prometheus metrics basic authentication |
+   | `METRICS_PASSWORD` | ❌ | - | Password for Prometheus metrics basic authentication |
 
 4. **Run database migrations**
    ```bash

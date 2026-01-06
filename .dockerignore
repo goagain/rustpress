@@ -65,3 +65,8 @@ uploads/
 # Test files
 *.test
 *.spec
+
+plugin_samples/
+installed_plugins/
+
+.cursorrules

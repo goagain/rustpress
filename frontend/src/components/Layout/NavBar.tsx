@@ -66,7 +66,7 @@ export function NavBar({ authenticated, onLogin, onLogout }: NavBarProps) {
                             </button>
                         )
                     )}
-                    <a href="https://github.com" target="_blank" className="p-2 text-slate-500 hover:text-slate-900">
+                    <a href="https://github.com/goagain/rustpress" target="_blank" className="p-2 text-slate-500 hover:text-slate-900">
                         <Github size={20} />
                     </a>
                 </div>

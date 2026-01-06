@@ -9,6 +9,8 @@
 # .env
 JWT_SECRET=your-secret-key-change-in-production
 ROOT_PASSWORD=changeme
+METRICS_USERNAME=admin
+METRICS_PASSWORD=metrics_password
 ```
 
 2. Start services:
@@ -38,12 +40,16 @@ docker-compose logs -f postgres
 
 ### Application Service (app)
 
-- `DATABASE_URL`: PostgreSQL connection string (default: `postgres://postgres:password@postgres:5432/rustpress`)
-- `STORAGE_DIR`: Upload file storage directory (default: `/app/uploads`)
-- `STORAGE_BASE_URL`: Base URL for uploaded files (default: `http://localhost:3000/uploads`)
-- `RUST_LOG`: Log level (default: `info`)
-- `JWT_SECRET`: JWT secret key (required, recommended to use a strong password)
-- `ROOT_PASSWORD`: Root user password (default: `changeme`)
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DATABASE_URL` | ✅ | `postgres://postgres:password@postgres:5432/rustpress` | PostgreSQL connection string |
+| `JWT_SECRET` | ✅ | `your-secret-key-change-in-production` | JWT secret key for authentication tokens |
+| `ROOT_PASSWORD` | ❌ | `changeme` | Root user password (auto-generated if not set) |
+| `STORAGE_DIR` | ❌ | `/app/uploads` | Directory for uploaded files |
+| `STORAGE_BASE_URL` | ❌ | `http://localhost:3000/uploads` | Base URL for accessing uploaded files |
+| `RUST_LOG` | ❌ | `info` | Log level (trace, debug, info, warn, error) |
+| `METRICS_USERNAME` | ❌ | - | Username for Prometheus metrics basic authentication |
+| `METRICS_PASSWORD` | ❌ | - | Password for Prometheus metrics basic authentication |
 
 ### PostgreSQL Service (postgres)
 
