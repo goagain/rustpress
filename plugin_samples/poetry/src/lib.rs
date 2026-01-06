@@ -20,7 +20,7 @@ impl Guest for PoetryPlugin {
             PluginFilterEvent::OnPostPublishedFilter(data) => {
                 let processed_data = on_post_published(data).map_err(|e| e.to_string())?;
                 Ok(PluginFilterEvent::OnPostPublishedFilter(processed_data))
-            },
+            }
             _ => Ok(event),
         }
     }
@@ -36,11 +36,13 @@ impl Guest for PoetryPlugin {
         }
     }
 }
-fn on_post_published(mut post: OnPostPublishedData) -> anyhow::Result<OnPostPublishedData, anyhow::Error> {
+fn on_post_published(
+    mut post: OnPostPublishedData,
+) -> anyhow::Result<OnPostPublishedData, anyhow::Error> {
     let mut rng = rand::rng();
     let line_index = rand::Rng::random_range(&mut rng, 0..SONNET_LINES.len());
     let poetry_line = SONNET_LINES[line_index];
-    post.content = format!("{}\n\n{}", post.content, poetry_line);
+    post.content = format!("***{}***<br><br>\n\n{}", poetry_line, post.content);
 
     Ok(post)
 }

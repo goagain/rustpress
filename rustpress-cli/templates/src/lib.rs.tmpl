@@ -41,7 +41,7 @@ fn on_post_published(mut post: OnPostPublishedData) -> anyhow::Result<OnPostPubl
     let mut rng = rand::rng();
     let line_index = rand::Rng::random_range(&mut rng, 0..SONNET_LINES.len());
     let poetry_line = SONNET_LINES[line_index];
-    post.content = format!("{}\n\n{}", post.content, poetry_line);
+    post.content = format!("***{}***<br><br>\n\n{}", poetry_line, post.content);
 
     Ok(post)
 }
