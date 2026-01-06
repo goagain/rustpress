@@ -3,4 +3,4 @@
 plugin_cache/
 *.rpk
 *.wasm
-plugin_samples/auto-category-plugin/plugin.wasm
+.rpk_cache/
