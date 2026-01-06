@@ -36,6 +36,7 @@ pub struct UpdatePostRequest {
     pub title: Option<String>,
     pub content: Option<String>,
     pub category: Option<String>,
+    pub description: Option<String>,
     #[serde(default)]
     pub create_version: bool,
     pub change_note: Option<String>,
@@ -48,6 +49,7 @@ pub struct PostResponse {
     pub title: String,
     pub content: String,
     pub category: Option<String>,
+    pub description: Option<String>,
     pub author_id: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -79,6 +81,7 @@ impl From<Post> for PostResponse {
             title: post.title,
             content: post.content,
             category: post.category,
+            description: post.description,
             author_id: post.author_id,
             created_at: post.created_at.into(),
             updated_at: post.updated_at.into(),
@@ -128,6 +131,7 @@ pub struct PostDraft {
     pub title: String,
     pub content: String,
     pub category: String,
+    pub description: Option<String>,
     pub author_id: i64,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
@@ -141,6 +145,7 @@ pub struct PostDraftResponse {
     pub title: String,
     pub content: String,
     pub category: String,
+    pub description: Option<String>,
     pub author_id: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -153,6 +158,8 @@ pub struct SaveDraftRequest {
     pub title: String,
     pub content: String,
     pub category: String,
+    #[serde(default)]
+    pub description: Option<String>,
 }
 
 /// Convert from database Model to PostVersion DTO
@@ -198,6 +205,7 @@ impl From<post_drafts::Model> for PostDraft {
             title: model.title,
             content: model.content,
             category: model.category,
+            description: model.description,
             author_id: model.author_id,
             created_at: model.created_at,
             updated_at: model.updated_at,
@@ -214,6 +222,7 @@ impl From<PostDraft> for PostDraftResponse {
             title: draft.title,
             content: draft.content,
             category: draft.category,
+            description: draft.description,
             author_id: draft.author_id,
             created_at: draft.created_at.into(),
             updated_at: draft.updated_at.into(),

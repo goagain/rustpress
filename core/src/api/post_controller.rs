@@ -248,7 +248,7 @@ pub async fn update_post<
         content: payload.content.unwrap_or(existing_post.content),
         category: payload.category.or(existing_post.category),
         author_id: existing_post.author_id,
-        description: existing_post.description,
+        description: payload.description.or(existing_post.description),
         created_at: existing_post.created_at,
         updated_at: existing_post.updated_at, // Placeholder value, actually updated automatically by ActiveModelBehavior
         archived_at: existing_post.archived_at,

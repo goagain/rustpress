@@ -20,6 +20,7 @@ export function CreatePost({ postId, initialPost, onSuccess, onCancel }: CreateP
   const isEditMode = !!postId;
   const [title, setTitle] = useState(initialPost?.title || '');
   const [category, setCategory] = useState(initialPost?.category || '');
+  const [description, setDescription] = useState(initialPost?.description || '');
   const [content, setContent] = useState(initialPost?.content || '');
   const [showPreview, setShowPreview] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -44,6 +45,7 @@ export function CreatePost({ postId, initialPost, onSuccess, onCancel }: CreateP
         if (draft && (!initialPost || new Date(draft.updated_at) > new Date(initialPost.updated_at))) {
           setTitle(draft.title);
           setCategory(draft.category);
+          setDescription(''); // Draft doesn't have description
           setContent(draft.content);
           const draftContent = draft.title + draft.category + draft.content;
           setLastSavedContent(draftContent);
@@ -73,7 +75,7 @@ export function CreatePost({ postId, initialPost, onSuccess, onCancel }: CreateP
     if (!isAuthenticated()) return;
     if (!title.trim() && !content.trim()) return; // Don't save empty drafts
     
-    const currentContent = title + category + content;
+    const currentContent = title + category + description + content;
     if (currentContent === lastSavedContent) return; // No changes
 
     try {
@@ -82,6 +84,7 @@ export function CreatePost({ postId, initialPost, onSuccess, onCancel }: CreateP
         post_id: postId ? parseInt(postId, 10) : null,
         title: title.trim() || 'Untitled',
         category: category.trim() || '',
+        description: description.trim() || null,
         content: content.trim() || '',
       });
       setLastSavedContent(currentContent);
@@ -97,7 +100,7 @@ export function CreatePost({ postId, initialPost, onSuccess, onCancel }: CreateP
 
   // Auto-save logic: every 30 seconds or after 50 characters
   useEffect(() => {
-    const currentContent = title + category + content;
+    const currentContent = title + category + description + content;
     const charDiff = Math.abs(currentContent.length - lastContentRef.current.length);
     
     // Update character count
@@ -156,6 +159,7 @@ export function CreatePost({ postId, initialPost, onSuccess, onCancel }: CreateP
         await api.updatePost(postId, {
           title: title.trim(),
           category: category.trim(),
+          description: description.trim() || undefined,
           content: content.trim(),
           create_version: true, // Always create version when editing
           change_note: undefined, // Can be enhanced later to allow user to add change notes
@@ -186,6 +190,7 @@ export function CreatePost({ postId, initialPost, onSuccess, onCancel }: CreateP
         await api.createPost({
           title: title.trim(),
           category: category.trim() || null,
+          description: description.trim() || null,
           content: content.trim(),
           author_id: authorId,
         });
@@ -201,6 +206,7 @@ export function CreatePost({ postId, initialPost, onSuccess, onCancel }: CreateP
       // Reset form
       setTitle('');
       setCategory('');
+      setDescription('');
       setContent('');
       setError('');
 
@@ -431,6 +437,25 @@ export function CreatePost({ postId, initialPost, onSuccess, onCancel }: CreateP
             placeholder="e.g., Announcement, Tutorial, News (optional)"
             disabled={loading}
           />
+        </div>
+
+        {/* Description */}
+        <div>
+          <label htmlFor="description" className="block text-sm font-medium text-slate-700 mb-2">
+            Description
+          </label>
+          <textarea
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-colors resize-y"
+            placeholder="Brief description of the post (optional)"
+            disabled={loading}
+          />
+          <p className="mt-2 text-xs text-slate-500">
+            A short summary that will be displayed in the sidebar when viewing the post
+          </p>
         </div>
 
         {/* Content Editor and Preview */}

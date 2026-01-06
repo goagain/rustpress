@@ -13,6 +13,7 @@ export interface PostResponse {
   title: string;
   content: string;
   category: string | null;
+  description: string | null;
   author_id: number;
   created_at: string;
   updated_at: string;
@@ -47,6 +48,7 @@ export interface User {
 export interface CreatePostRequest {
   title: string;
   category?: string;
+  description?: string;
   content: string;
   author_id: number;
 }
@@ -79,12 +81,14 @@ export interface SaveDraftRequest {
   title: string;
   content: string;
   category: string;
+  description?: string | null;
 }
 
 export interface UpdatePostRequest {
   title?: string;
   content?: string;
   category?: string;
+  description?: string;
   create_version?: boolean;
   change_note?: string;
 }

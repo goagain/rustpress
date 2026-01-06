@@ -42,9 +42,11 @@ fn on_post_published(
     mut post: OnPostPublishedData,
 ) -> anyhow::Result<OnPostPublishedData, anyhow::Error> {
     // Skip if description is already set
-    if post.description.is_some() {
-        info!("Post already has description, skipping auto-summary");
-        return Ok(post);
+    if let Some(description) = post.description.clone() {
+        if !description.is_empty() {
+            info!("Post already has description, skipping auto-summary");
+            return Ok(post);
+        }
     }
 
     info!("Generating AI summary for post: {}", post.title);

@@ -280,6 +280,7 @@ impl PostRepository for PostgresPostRepository {
             active_model.title = Set(request.title);
             active_model.content = Set(request.content);
             active_model.category = Set(request.category);
+            active_model.description = Set(request.description);
             // updated_at is automatically updated by trigger
             let updated = active_model.update(self.db.as_ref()).await?;
             Ok(PostDraft::from(updated))
@@ -290,6 +291,7 @@ impl PostRepository for PostgresPostRepository {
                 title: Set(request.title),
                 content: Set(request.content),
                 category: Set(request.category),
+                description: Set(request.description),
                 author_id: Set(author_id),
                 ..Default::default()
             };

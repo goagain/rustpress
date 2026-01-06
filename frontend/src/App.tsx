@@ -140,10 +140,11 @@ export default function App() {
             )}
           </div>
 
-          <SideBar 
-            authenticated={authenticated} 
+          <SideBar
+            authenticated={authenticated}
             onLogin={() => setShowLoginModal(true)}
             onCreatePost={handleCreatePost}
+            postSummary={selectedPost?.description || undefined}
           />
         </div>
       </main>

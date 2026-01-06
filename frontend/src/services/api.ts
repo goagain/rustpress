@@ -167,11 +167,14 @@ export const api = {
     };
   },
 
-  async createPost(post: { title: string; category?: string | null; content: string; author_id: number }): Promise<PostResponse> {
-    // Remove null category from the request body
+  async createPost(post: { title: string; category?: string | null; description?: string | null; content: string; author_id: number }): Promise<PostResponse> {
+    // Remove null/empty fields from the request body
     const requestBody = { ...post };
     if (requestBody.category === null || requestBody.category === '') {
       delete requestBody.category;
+    }
+    if (requestBody.description === null || requestBody.description === '') {
+      delete requestBody.description;
     }
 
     const response = await authenticatedFetch(`${API_BASE_URL}/posts`, {
