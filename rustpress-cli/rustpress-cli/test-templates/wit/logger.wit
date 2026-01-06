@@ -1,0 +1,13 @@
+package rustpress:plugin;
+
+interface logger {
+    enum log-level {
+        trace,
+        debug,
+        info,
+        warn,
+        error
+    }
+
+    log: func(lvl: log-level, msg: string);
+}

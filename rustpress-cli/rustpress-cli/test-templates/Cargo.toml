@@ -1,7 +1,7 @@
 [workspace]
 
 [package]
-name = "poetry"
+name = "test-templates"
 version = "0.1.0"
 edition = "2024"
 
@@ -19,11 +19,11 @@ rand = "0.9.2"
 
 [package.metadata.rustpress]
 # Display name for the plugin
-title = "poetry"
+title = "test-templates"
 # Icon path (relative to plugin root)
 icon = "assets/icon.png"
 # Unique package identifier
-package-id = "com.example.poetry"
+package-id = "com.example.test-templates"
 
 # Hooks this plugin implements (functions exported from WIT)
 hooks = [

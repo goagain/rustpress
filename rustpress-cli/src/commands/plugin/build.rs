@@ -4,7 +4,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-pub fn build_plugin(release: &bool) -> Result<String> {
+pub fn build_plugin(release: &bool, output_dir: &Path) -> Result<String> {
     println!("{}", "Building Rustpress plugin...".cyan().bold());
 
     // Check if we're in a plugin directory (has Cargo.toml)
@@ -51,10 +51,15 @@ pub fn build_plugin(release: &bool) -> Result<String> {
     let wasm_file = &wasm_files[0];
     println!("  Found plugin binary: {}", wasm_file.display());
 
-    // Copy to plugin.wasm in current directory
-    let plugin_wasm_path = Path::new("plugin.wasm");
-    fs::copy(wasm_file, plugin_wasm_path)
-        .with_context(|| format!("Failed to copy {} to plugin.wasm", wasm_file.display()))?;
+    // Copy to plugin.wasm in output directory
+    let plugin_wasm_path = output_dir.join("plugin.wasm");
+    fs::copy(wasm_file, &plugin_wasm_path).with_context(|| {
+        format!(
+            "Failed to copy {} to {}",
+            wasm_file.display(),
+            plugin_wasm_path.display()
+        )
+    })?;
 
     println!(
         "  ✅ Plugin binary copied to: {}",
@@ -62,7 +67,7 @@ pub fn build_plugin(release: &bool) -> Result<String> {
     );
 
     // Generate manifest.toml from Cargo.toml
-    generate_manifest()?;
+    generate_manifest(output_dir)?;
 
     println!("{}", "✅ Plugin built successfully!".green().bold());
     println!("  📦 Binary: plugin.wasm");
@@ -115,7 +120,7 @@ fn find_wasm_files(dir: &str) -> Result<Vec<std::path::PathBuf>> {
     Ok(wasm_files)
 }
 
-fn generate_manifest() -> Result<()> {
+fn generate_manifest(output_dir: &Path) -> Result<()> {
     // Read Cargo.toml
     let cargo_toml_content =
         fs::read_to_string("Cargo.toml").with_context(|| "Failed to read Cargo.toml")?;
@@ -248,11 +253,19 @@ fn generate_manifest() -> Result<()> {
     let manifest_content = toml::to_string_pretty(&manifest)
         .with_context(|| "Failed to serialize manifest to TOML")?;
 
-    // Write manifest.toml
-    fs::write("manifest.toml", manifest_content)
-        .with_context(|| "Failed to write manifest.toml")?;
+    // Write manifest.toml to output directory
+    let manifest_path = output_dir.join("manifest.toml");
+    fs::write(&manifest_path, manifest_content).with_context(|| {
+        format!(
+            "Failed to write manifest.toml to {}",
+            manifest_path.display()
+        )
+    })?;
 
-    println!("  📋 Generated manifest.toml");
+    println!(
+        "  📋 Generated manifest.toml at {}",
+        manifest_path.display()
+    );
 
     Ok(())
 }

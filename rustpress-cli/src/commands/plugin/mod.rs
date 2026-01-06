@@ -38,7 +38,7 @@ pub fn handle_plugin_command(args: &PluginArgs) -> Result<()> {
     match &args.command {
         PluginCommand::New { plugin_name } => new::create_new_plugin(plugin_name),
         PluginCommand::Build { release } => {
-            build::build_plugin(release)?;
+            build::build_plugin(release, std::path::Path::new("."))?;
             Ok(())
         }
         PluginCommand::Pack {

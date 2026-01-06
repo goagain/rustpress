@@ -3001,6 +3001,8 @@ dependencies = [
  "anyhow",
  "clap",
  "colored",
+ "rust-embed",
+ "tempfile",
  "toml",
  "zip",
 ]

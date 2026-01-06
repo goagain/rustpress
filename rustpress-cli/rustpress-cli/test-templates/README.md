@@ -1,4 +1,4 @@
-# {{plugin_name}}
+# test-templates
 
 A Rustpress Wasm plugin.
 
@@ -12,7 +12,7 @@ A Rustpress Wasm plugin.
 2. Install to your Rustpress instance:
    ```bash
    # Copy the .rpk file to your plugins directory
-   cp target/wasm32-wasip2/release/{{plugin_name}}.rpk ~/rustpress/plugins/
+   cp target/wasm32-wasip2/release/test-templates.rpk ~/rustpress/plugins/
    ```
 
 3. Restart your Rustpress server to load the plugin.

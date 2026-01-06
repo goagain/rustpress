@@ -9,13 +9,13 @@ wit_bindgen::generate!({
 });
 
 use crate::exports::rustpress::plugin::event_handler::*;
-struct PoetryPlugin;
+struct TestTemplatesPlugin;
 
-impl Guest for PoetryPlugin {
+impl Guest for TestTemplatesPlugin {
     fn handle_filter(event: PluginFilterEvent) -> anyhow::Result<PluginFilterEvent, String> {
         crate::logger::init();
 
-        info!("Processing post for poetry enhancement");
+        info!("Processing event for test-templates plugin");
         match event {
             PluginFilterEvent::OnPostPublishedFilter(data) => {
                 let processed_data = on_post_published(data).map_err(|e| e.to_string())?;
@@ -27,7 +27,7 @@ impl Guest for PoetryPlugin {
     fn handle_action(event: PluginActionEvent) {
         crate::logger::init();
 
-        info!("Processing action for poetry enhancement");
+        info!("Processing action for test-templates plugin");
         // For now, just log the event
         match event {
             PluginActionEvent::Unknown => {
@@ -62,4 +62,4 @@ static SONNET_LINES: &[&str] = &[
     "So long lives this, and this gives life to thee.",
 ];
 
-export!(PoetryPlugin);
+export!(TestTemplatesPlugin);
