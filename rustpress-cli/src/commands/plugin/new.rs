@@ -121,11 +121,8 @@ pub fn create_new_plugin(plugin_name: &str) -> Result<()> {
     println!();
     println!("Next steps:");
     println!("  1. {}", format!("cd {}", plugin_name).yellow());
-    println!(
-        "  2. {}",
-        "cargo build --target wasm32-unknown-unknown --release".yellow()
-    );
-    println!("  3. Copy the .rpk file to your Rustpress plugins directory");
+    println!("  2. {}", "cargo rustpress plugin pack".yellow());
+    println!("  3. Install the generated .rpk file to your Rustpress instance");
 
     Ok(())
 }

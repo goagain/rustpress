@@ -1,6 +1,7 @@
 mod build;
 mod new;
 mod pack;
+mod update;
 
 use anyhow::Result;
 use clap::Args;
@@ -32,6 +33,11 @@ pub enum PluginCommand {
         #[arg(long)]
         output_dir: Option<String>,
     },
+    Update {
+        /// Force update all WIT files even if they already exist
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 pub fn handle_plugin_command(args: &PluginArgs) -> Result<()> {
@@ -45,5 +51,6 @@ pub fn handle_plugin_command(args: &PluginArgs) -> Result<()> {
             release,
             output_dir,
         } => pack::pack_plugin(release, output_dir),
+        PluginCommand::Update { force } => update::update_plugin_wit(force),
     }
 }
