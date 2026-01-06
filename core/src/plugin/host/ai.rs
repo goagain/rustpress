@@ -9,18 +9,6 @@ use crate::dto::openai::ChatCompletionRequest;
 use crate::plugin::rustpress::plugin::ai::*;
 use std::sync::Arc;
 
-/// AI Helper - Provides secure AI capabilities to authorized plugins through the host interface
-pub struct AiHelper {
-    ai_service: Arc<AiService>,
-}
-
-impl AiHelper {
-    /// Create a new AI helper instance
-    pub fn new(ai_service: Arc<AiService>) -> Self {
-        Self { ai_service }
-    }
-}
-
 #[async_trait::async_trait]
 impl Host for super::super::PluginHostState {
     async fn chat_completion(
@@ -30,6 +18,11 @@ impl Host for super::super::PluginHostState {
         Result<crate::plugin::rustpress::plugin::ai::ChatCompletionResponse, String>,
         wasmtime::Error,
     > {
+        let ai_service = self.ai_service.as_ref().unwrap();
+
+        if self.ai_service.as_ref().is_none() {
+            return Err(anyhow::anyhow!("AI service is not available").into());
+        }
         // Check if plugin has AI chat permission
         if !self.granted_permissions.contains("ai:chat") {
             return Ok(Err(format!(
@@ -38,77 +31,59 @@ impl Host for super::super::PluginHostState {
             )));
         }
 
-        // Check if AI helper is available
-        match &self.ai_helper {
-            Some(ai_helper) => {
-                // Convert WIT request to internal DTO
-                let internal_request = crate::dto::openai::ChatCompletionRequest {
-                    model: request.model,
-                    messages: request
-                        .messages
+        // Convert WIT request to internal DTO
+        let internal_request = crate::dto::openai::ChatCompletionRequest {
+            model: request.model.clone(),
+            messages: request
+                .messages
+                .into_iter()
+                .map(|msg| crate::dto::openai::ChatMessage {
+                    role: msg.role,
+                    content: msg.content,
+                })
+                .collect(),
+            max_tokens: request.max_tokens,
+        };
+
+        let plugin_id = self.plugin_id.clone();
+        let plugin_registry = self.get_plugin_registry();
+        // Call AI service through helper
+        match ai_service
+            .chat_completion(&plugin_registry, &plugin_id, internal_request)
+            .await
+        {
+            Ok(response) => {
+                // Convert response back to WIT format
+                let wit_response = crate::plugin::rustpress::plugin::ai::ChatCompletionResponse {
+                    id: response.id,
+                    object: response.object,
+                    created: response.created.try_into().unwrap_or(0),
+                    model: response.model,
+                    choices: response
+                        .choices
                         .into_iter()
-                        .map(|msg| crate::dto::openai::ChatMessage {
-                            role: msg.role,
-                            content: msg.content,
-                        })
+                        .map(
+                            |choice| crate::plugin::rustpress::plugin::ai::ChatCompletionChoice {
+                                message: crate::plugin::rustpress::plugin::ai::ChatMessage {
+                                    role: choice.message.role,
+                                    content: choice.message.content,
+                                },
+                                finish_reason: choice
+                                    .finish_reason
+                                    .unwrap_or_else(|| "unknown".to_string()),
+                            },
+                        )
                         .collect(),
-                    max_tokens: request.max_tokens,
+                    usage: crate::plugin::rustpress::plugin::ai::ChatCompletionUsage {
+                        prompt_tokens: response.usage.prompt_tokens.try_into().unwrap_or(0),
+                        completion_tokens: response.usage.completion_tokens.try_into().unwrap_or(0),
+                        total_tokens: response.usage.total_tokens.try_into().unwrap_or(0),
+                    },
                 };
 
-                // Call AI service through helper
-                match ai_helper
-                    .ai_service
-                    .chat_completion(&self.plugin_id, internal_request)
-                    .await
-                {
-                    Ok(response) => {
-                        // Convert response back to WIT format
-                        let wit_response =
-                            crate::plugin::rustpress::plugin::ai::ChatCompletionResponse {
-                                id: response.id,
-                                object: response.object,
-                                created: response.created.try_into().unwrap_or(0),
-                                model: response.model,
-                                choices: response
-                                    .choices
-                                    .into_iter()
-                                    .map(|choice| {
-                                        crate::plugin::rustpress::plugin::ai::ChatCompletionChoice {
-                                            message:
-                                                crate::plugin::rustpress::plugin::ai::ChatMessage {
-                                                    role: choice.message.role,
-                                                    content: choice.message.content,
-                                                },
-                                            finish_reason: choice
-                                                .finish_reason
-                                                .unwrap_or_else(|| "unknown".to_string()),
-                                        }
-                                    })
-                                    .collect(),
-                                usage: crate::plugin::rustpress::plugin::ai::ChatCompletionUsage {
-                                    prompt_tokens: response
-                                        .usage
-                                        .prompt_tokens
-                                        .try_into()
-                                        .unwrap_or(0),
-                                    completion_tokens: response
-                                        .usage
-                                        .completion_tokens
-                                        .try_into()
-                                        .unwrap_or(0),
-                                    total_tokens: response
-                                        .usage
-                                        .total_tokens
-                                        .try_into()
-                                        .unwrap_or(0),
-                                },
-                            };
-                        Ok(Ok(wit_response))
-                    }
-                    Err(e) => Ok(Err(e)),
-                }
+                Ok(Ok(wit_response))
             }
-            None => Ok(Err("AI functionality is not available".to_string())),
+            Err(e) => Ok(Err(e)),
         }
     }
 
@@ -122,10 +97,10 @@ impl Host for super::super::PluginHostState {
         }
 
         // Check if AI helper is available
-        match &self.ai_helper {
-            Some(ai_helper) => {
+        match &self.ai_service {
+            Some(ai_service) => {
                 // Call AI service through helper
-                match ai_helper.ai_service.list_models(&self.plugin_id).await {
+                match ai_service.list_models(&self.plugin_id).await {
                     Ok(response) => {
                         let model_ids = response
                             .models

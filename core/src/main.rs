@@ -98,12 +98,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         crate::repository::PostgresOpenAIApiKeyRepository::new(db.clone()),
     );
 
-    // Create core AI service
-    let ai_service = Arc::new(crate::ai::AiService::new(openai_api_key_repository));
-
-    // Create AI helper for plugins
-    let ai_helper = Arc::new(crate::plugin::host::ai::AiHelper::new(ai_service));
-
     // Create RPK processor
     let rpk_processor = Arc::new(crate::rpk::RpkProcessor::new(
         std::env::current_dir().unwrap().join("installed_plugins"),
@@ -119,17 +113,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         crate::plugin::engine::PluginEngine::new().expect("Failed to create plugin engine"),
     );
 
-    // Initialize plugin system
+    let ai_service = Arc::new(crate::ai::AiService::new(openai_api_key_repository));
+
+    // Initialize plugin system first
     let plugin_registry = Arc::new(crate::plugin::registry::PluginRegistry::new(
         plugin_engine,
         Arc::new(db.clone()),
         rpk_processor.clone(),
-    ));
-
-    let plugin_executer = Arc::new(crate::plugin::registry::PluginExecuter::new(
-        plugin_registry.clone(),
-        Some(ai_helper.clone()),
-        Arc::new(db.clone()),
+        Some(ai_service),
     ));
 
     // Load all enabled plugins from database
@@ -161,7 +152,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     tracing::info!("   Base URL: {}", storage_base_url);
 
     // Create routes (API Controller layer)
-    let app = create_router(app_state, storage, db, plugin_registry, plugin_executer);
+    let app = create_router(app_state, storage, db, plugin_registry);
 
     // Start server
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")

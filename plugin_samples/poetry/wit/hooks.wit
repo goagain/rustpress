@@ -9,6 +9,7 @@ interface event-handler {
     }
 
     variant plugin-action-event {
+        on-ai-token-used(on-ai-token-used-data),
         unknown
     }
 
@@ -18,6 +19,16 @@ interface event-handler {
         category: option<string>,
         author-id: s64,
         description: option<string>,
+    }
+
+    record on-ai-token-used-data {
+        plugin-id: string,
+        model: string,
+        prompt-tokens: s64,
+        completion-tokens: s64,
+        total-tokens: s64,
+        operation: string,
+        user-id: option<s64>,
     }
 
     record unknown {

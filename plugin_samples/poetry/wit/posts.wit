@@ -1,0 +1,5 @@
+package rustpress:plugin;
+
+interface posts {
+    list-categories: func() -> list<string>;
+}

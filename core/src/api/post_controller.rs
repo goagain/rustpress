@@ -41,7 +41,6 @@ pub struct ExtendedAppState<
     pub storage: Arc<SB>,
     pub db: Arc<sea_orm::DatabaseConnection>,
     pub plugin_registry: Arc<crate::plugin::registry::PluginRegistry>,
-    pub plugin_executer: Arc<crate::plugin::registry::PluginExecuter>,
 }
 
 impl<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>
@@ -52,14 +51,12 @@ impl<PR: PostRepository, UR: UserRepository, SB: crate::storage::StorageBackend>
         storage: Arc<SB>,
         db: sea_orm::DatabaseConnection,
         plugin_registry: Arc<crate::plugin::registry::PluginRegistry>,
-        plugin_executer: Arc<crate::plugin::registry::PluginExecuter>,
     ) -> Self {
         Self {
             app_state,
             storage,
             db: Arc::new(db),
             plugin_registry,
-            plugin_executer,
         }
     }
 }
@@ -156,7 +153,7 @@ pub async fn create_post<
     initial_post_data.author_id = current_user.id;
 
     let filtered_post_data = state
-        .plugin_executer
+        .plugin_registry
         .call_filter_hook(
             "filter_post_published",
             &PluginFilterEvent::OnPostPublishedFilter(OnPostPublishedData::from(initial_post_data)),

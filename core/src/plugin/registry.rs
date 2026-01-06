@@ -1,8 +1,9 @@
 //! Plugin Registry - Manages loaded plugins and their hook mappings
 
+use crate::ai::AiService;
 use crate::plugin::engine::PluginEngine;
 use crate::plugin::exports::rustpress::plugin::event_handler::{
-    OnPostPublishedData, PluginFilterEvent,
+    OnPostPublishedData, PluginActionEvent, PluginFilterEvent,
 };
 use crate::plugin::loaded_plugin::LoadedPlugin;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
@@ -18,6 +19,7 @@ pub struct PluginRegistry {
     engine: Arc<PluginEngine>,
     db: Arc<sea_orm::DatabaseConnection>,
     rpk_processor: Arc<crate::rpk::RpkProcessor>,
+    ai_service: Option<Arc<AiService>>,
 }
 
 impl PluginRegistry {
@@ -26,6 +28,7 @@ impl PluginRegistry {
         engine: Arc<PluginEngine>,
         db: Arc<sea_orm::DatabaseConnection>,
         rpk_processor: Arc<crate::rpk::RpkProcessor>,
+        ai_service: Option<Arc<AiService>>,
     ) -> Self {
         Self {
             engine,
@@ -33,6 +36,7 @@ impl PluginRegistry {
             plugins: Arc::new(RwLock::new(HashMap::new())),
             hook_to_plugins: Arc::new(RwLock::new(HashMap::new())),
             rpk_processor,
+            ai_service,
         }
     }
 
@@ -618,33 +622,14 @@ impl PluginRegistry {
 
         Ok(new_permissions)
     }
-}
-
-pub struct PluginExecuter {
-    registry: Arc<PluginRegistry>,
-    ai_client: Option<Arc<crate::plugin::host::ai::AiHelper>>,
-    db: Arc<sea_orm::DatabaseConnection>,
-}
-
-impl PluginExecuter {
-    pub fn new(
-        registry: Arc<PluginRegistry>,
-        ai_client: Option<Arc<crate::plugin::host::ai::AiHelper>>,
-        db: Arc<sea_orm::DatabaseConnection>,
-    ) -> Self {
-        Self {
-            registry,
-            ai_client,
-            db,
-        }
-    }
 
     fn new_state(&self, plugin: &LoadedPlugin) -> anyhow::Result<super::PluginHostState> {
         Ok(super::PluginHostState::new(
             plugin.plugin_id.clone(),
             plugin.granted_permissions.clone(),
-            self.ai_client.clone(),
             self.db.clone(),
+            &self,
+            self.ai_service.clone(),
         ))
     }
 
@@ -652,8 +637,8 @@ impl PluginExecuter {
         &self,
         plugin: &LoadedPlugin,
     ) -> anyhow::Result<(wasmtime::Store<super::PluginHostState>, super::PluginWorld)> {
-        let engine = self.registry.engine.get_engine();
-        let linker = self.registry.engine.get_linker();
+        let engine = self.engine.get_engine();
+        let linker = self.engine.get_linker();
         let state = self.new_state(plugin)?;
         let component = plugin.component.as_ref().unwrap();
         let mut store = wasmtime::Store::new(engine, state);
@@ -667,7 +652,7 @@ impl PluginExecuter {
         hook_name: &str,
         data: &PluginFilterEvent,
     ) -> anyhow::Result<PluginFilterEvent> {
-        let plugins = self.registry.get_plugins_for_hook(hook_name).await;
+        let plugins = self.get_plugins_for_hook(hook_name).await;
         tracing::info!(
             "Calling filter hook {} with data: {:?} and {} plugins",
             hook_name,
@@ -721,5 +706,52 @@ impl PluginExecuter {
             }
         }
         Ok(modified_data)
+    }
+
+    pub async fn call_action_hook(
+        &self,
+        hook_name: &str,
+        data: &PluginActionEvent,
+    ) -> anyhow::Result<()> {
+        let plugins = self.get_plugins_for_hook(hook_name).await;
+        tracing::info!(
+            "Calling action hook {} with data: {:?} and {} plugins",
+            hook_name,
+            data,
+            &plugins.len()
+        );
+
+        for plugin in &plugins {
+            tracing::info!("Plugin: {:?}", plugin.plugin_id);
+        }
+
+        for plugin in plugins {
+            let (store, bindings) = self.get_bindings(&plugin).await?;
+            match bindings
+                .rustpress_plugin_event_handler()
+                .call_handle_action(store, data)
+                .await
+            {
+                Ok(_) => {
+                    // Action hooks don't return data, just log success
+                    tracing::debug!(
+                        "Successfully called {} action hook for plugin {}",
+                        hook_name,
+                        plugin.plugin_id
+                    );
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "Error calling {} action hook for plugin {}: {:?}",
+                        hook_name,
+                        plugin.plugin_id,
+                        e
+                    );
+                    // For action hooks, we don't return errors, just log them
+                    // This allows other plugins to still process the hook
+                }
+            }
+        }
+        Ok(())
     }
 }

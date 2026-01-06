@@ -14,67 +14,71 @@ impl Host for super::super::PluginHostState {
         labels: Vec<(String, String)>,
     ) -> Result<(), wasmtime::Error> {
         // Create the full metric name with plugin ID prefix
-        let full_name = format!("plugin_{}_{}", self.plugin_id, name);
+        // Clean the plugin ID to be valid for Prometheus metric names
+        let clean_plugin_id = self.plugin_id.replace(".", "_").replace("-", "_");
+        let full_name = format!("plugin_{}_{}", clean_plugin_id, name);
 
         // Convert labels to a more usable format
-        let label_pairs: Vec<(&str, &str)> = labels
+        // Clean label values to be valid for Prometheus
+        let label_pairs: Vec<(&str, String)> = labels
             .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .map(|(k, v)| (k.as_str(), v.replace(".", "_").replace("-", "_")))
             .collect();
 
         // Emit the metric based on its type
         match (metric_type, value) {
             (MetricType::Counter, MetricValue::Counter(count)) => {
+                let label_names: Vec<&str> = label_pairs.iter().map(|(k, _)| *k).collect();
                 let counter = prometheus::register_counter_vec!(
                     &full_name,
                     "Plugin counter metric",
-                    &label_pairs.iter().map(|(k, _)| *k).collect::<Vec<_>>()
+                    &label_names
                 )
                 .unwrap_or_else(|_| {
                     // If registration fails, try to get existing metric
                     prometheus::CounterVec::new(
                         prometheus::Opts::new(&full_name, "Plugin counter metric"),
-                        &label_pairs.iter().map(|(k, _)| *k).collect::<Vec<_>>(),
+                        &label_names,
                     )
                     .unwrap()
                 });
 
                 // Set the counter value
-                if let Ok(counter) = counter.get_metric_with_label_values(
-                    &label_pairs.iter().map(|(_, v)| *v).collect::<Vec<_>>(),
-                ) {
+                let label_values: Vec<&str> = label_pairs.iter().map(|(_, v)| v.as_str()).collect();
+                if let Ok(counter) = counter.get_metric_with_label_values(&label_values) {
                     counter.reset(); // Reset to 0 first
                     counter.inc_by(count as f64); // Then increment by the desired value
                 }
             }
 
             (MetricType::Gauge, MetricValue::Gauge(gauge_value)) => {
+                let label_names: Vec<&str> = label_pairs.iter().map(|(k, _)| *k).collect();
                 let gauge = prometheus::register_gauge_vec!(
                     &full_name,
                     "Plugin gauge metric",
-                    &label_pairs.iter().map(|(k, _)| *k).collect::<Vec<_>>()
+                    &label_names
                 )
                 .unwrap_or_else(|_| {
                     prometheus::GaugeVec::new(
                         prometheus::Opts::new(&full_name, "Plugin gauge metric"),
-                        &label_pairs.iter().map(|(k, _)| *k).collect::<Vec<_>>(),
+                        &label_names,
                     )
                     .unwrap()
                 });
 
-                if let Ok(gauge) = gauge.get_metric_with_label_values(
-                    &label_pairs.iter().map(|(_, v)| *v).collect::<Vec<_>>(),
-                ) {
+                let label_values: Vec<&str> = label_pairs.iter().map(|(_, v)| v.as_str()).collect();
+                if let Ok(gauge) = gauge.get_metric_with_label_values(&label_values) {
                     gauge.set(gauge_value);
                 }
             }
 
             (MetricType::Histogram, MetricValue::Histogram(histogram_metric)) => {
                 // For histogram, we need to create a custom histogram with the provided buckets
+                let label_names: Vec<&str> = label_pairs.iter().map(|(k, _)| *k).collect();
                 let histogram = prometheus::register_histogram_vec!(
                     &full_name,
                     "Plugin histogram metric",
-                    &label_pairs.iter().map(|(k, _)| *k).collect::<Vec<_>>()
+                    &label_names
                 )
                 .unwrap_or_else(|_| {
                     // Create histogram with custom buckets
@@ -88,14 +92,13 @@ impl Host for super::super::PluginHostState {
                             ),
                             buckets,
                         },
-                        &label_pairs.iter().map(|(k, _)| *k).collect::<Vec<_>>(),
+                        &label_names,
                     )
                     .unwrap()
                 });
 
-                if let Ok(histogram) = histogram.get_metric_with_label_values(
-                    &label_pairs.iter().map(|(_, v)| *v).collect::<Vec<_>>(),
-                ) {
+                let label_values: Vec<&str> = label_pairs.iter().map(|(_, v)| v.as_str()).collect();
+                if let Ok(histogram) = histogram.get_metric_with_label_values(&label_values) {
                     // For histogram, we need to simulate observations
                     // Since Prometheus histograms don't allow direct setting of values,
                     // we'll observe the sample_sum divided by sample_count as an approximation

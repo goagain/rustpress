@@ -1,0 +1,34 @@
+package rustpress:plugin;
+
+interface metrics {
+    /// Metric types supported by the metrics system
+    enum metric-type {
+        counter,
+        gauge,
+        histogram,
+    }
+
+    /// Record for histogram bucket configuration
+    record histogram-bucket {
+        le: f64,
+        count: u64,
+    }
+
+    /// Record for histogram metric
+    record histogram-metric {
+        sample-count: u64,
+        sample-sum: f64,
+        buckets: list<histogram-bucket>,
+    }
+
+    /// Variant for different metric value types
+    variant metric-value {
+        counter(u64),
+        gauge(f64),
+        histogram(histogram-metric),
+    }
+
+    /// Emit a metric with the plugin ID as prefix
+    /// The full metric name will be: "plugin_{plugin_id}_{name}"
+    emit: func(name: string, metric-type: metric-type, value: metric-value, labels: list<tuple<string, string>>);
+}

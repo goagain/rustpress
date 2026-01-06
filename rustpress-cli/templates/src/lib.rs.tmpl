@@ -31,9 +31,7 @@ impl Guest for {{plugin_name_pascal}}Plugin {
         info!("Processing action for {{plugin_name}} plugin");
         // For now, just log the event
         match event {
-            PluginActionEvent::Unknown => {
-                // Do nothing for unknown events
-            }
+            _ => (),
         }
     }
 }

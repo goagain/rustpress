@@ -32,9 +32,7 @@ impl Guest for AutoSummaryPlugin {
         info!("Processing action for auto-summary plugin");
         // For now, just log the event
         match event {
-            PluginActionEvent::Unknown => {
-                // Do nothing for unknown events
-            }
+            _ => (),
         }
     }
 }
@@ -88,20 +86,19 @@ fn generate_summary(post: &OnPostPublishedData) -> anyhow::Result<String> {
         Please only return the summary, no other text.
     ";
 
-    let user_prompt = format!(
-        "Title: {}\n\nContent: {}",
-        post.title,
-        post.content
-    );
+    let user_prompt = format!("Title: {}\n\nContent: {}", post.title, post.content);
 
     // Create chat completion request
-    let messages = vec![ChatMessage {
-        role: "system".to_string(),
-        content: system_prompt.to_string(),
-    }, ChatMessage {
-        role: "user".to_string(),
-        content: user_prompt,
-    }];
+    let messages = vec![
+        ChatMessage {
+            role: "system".to_string(),
+            content: system_prompt.to_string(),
+        },
+        ChatMessage {
+            role: "user".to_string(),
+            content: user_prompt,
+        },
+    ];
 
     // Call AI chat completion
     match chat_completion(&ChatCompletionRequest {
@@ -117,7 +114,7 @@ fn generate_summary(post: &OnPostPublishedData) -> anyhow::Result<String> {
             } else {
                 Err(anyhow::anyhow!("No response choices returned from AI"))
             }
-        },
+        }
         Err(e) => Err(anyhow::anyhow!("AI chat completion failed: {}", e)),
     }
 }
@@ -141,19 +138,18 @@ fn generate_category(post: &OnPostPublishedData) -> anyhow::Result<String> {
         If the post is not related to any of the categories, generate a new category.
     ", categories.join(", "));
 
-    let user_prompt = format!(
-        "Title: {}\n\nContent: {}",
-        post.title,
-        post.content
-    );
+    let user_prompt = format!("Title: {}\n\nContent: {}", post.title, post.content);
 
-    let messages = vec![ChatMessage {
-        role: "system".to_string(),
-        content: system_prompt.to_string(),
-    }, ChatMessage {
-        role: "user".to_string(),
-        content: user_prompt,
-    }];
+    let messages = vec![
+        ChatMessage {
+            role: "system".to_string(),
+            content: system_prompt.to_string(),
+        },
+        ChatMessage {
+            role: "user".to_string(),
+            content: user_prompt,
+        },
+    ];
 
     match chat_completion(&ChatCompletionRequest {
         model: None, // Use default model
@@ -168,7 +164,7 @@ fn generate_category(post: &OnPostPublishedData) -> anyhow::Result<String> {
             } else {
                 Err(anyhow::anyhow!("No response choices returned from AI"))
             }
-        },
+        }
         Err(e) => Err(anyhow::anyhow!("AI chat completion failed: {}", e)),
     }
 }

@@ -11,6 +11,8 @@ use std::sync::Arc;
 
 use wasmtime_wasi::{ResourceTable, WasiCtx};
 
+use crate::{ai::AiService, plugin::registry::PluginRegistry};
+
 wasmtime::component::bindgen!({
     world: "plugin-world",
     path: "../wit",
@@ -22,8 +24,9 @@ pub struct PluginHostState {
     table: ResourceTable,
     plugin_id: String,
     granted_permissions: std::collections::HashSet<String>,
-    ai_helper: Option<std::sync::Arc<crate::plugin::host::ai::AiHelper>>,
     db: Arc<sea_orm::DatabaseConnection>,
+    plugin_registry: Arc<PluginRegistry>,
+    ai_service: Option<Arc<AiService>>,
 }
 
 impl PluginHostState {
@@ -31,8 +34,9 @@ impl PluginHostState {
     pub fn new(
         plugin_id: String,
         granted_permissions: std::collections::HashSet<String>,
-        ai_helper: Option<std::sync::Arc<crate::plugin::host::ai::AiHelper>>,
         db: Arc<sea_orm::DatabaseConnection>,
+        plugin_registry: &PluginRegistry,
+        ai_service: Option<Arc<AiService>>,
     ) -> Self {
         let ctx = wasmtime_wasi::WasiCtxBuilder::new()
             .inherit_stderr()
@@ -45,9 +49,14 @@ impl PluginHostState {
             table,
             plugin_id,
             granted_permissions,
-            ai_helper,
             db,
+            plugin_registry: Arc::new(plugin_registry.clone()),
+            ai_service,
         }
+    }
+
+    pub fn get_plugin_registry(&self) -> Arc<crate::plugin::registry::PluginRegistry> {
+        self.plugin_registry.clone()
     }
 }
 

@@ -33,6 +33,7 @@ impl Guest for PoetryPlugin {
             PluginActionEvent::Unknown => {
                 // Do nothing for unknown events
             }
+            _ => (),
         }
     }
 }

@@ -8,6 +8,7 @@ use crate::dto::openai::{
     ChatCompletionRequest, ChatCompletionResponse, ChatMessage, ListOpenAIModelsResponse,
     OpenAIModel,
 };
+use crate::plugin::exports::rustpress::plugin::event_handler::PluginActionEvent;
 use crate::repository::OpenAIApiKeyRepository;
 use chrono;
 use std::sync::Arc;
@@ -49,6 +50,7 @@ impl AiService {
     /// Perform a chat completion using the default API key
     pub async fn chat_completion(
         &self,
+        plugin_registry: &crate::plugin::registry::PluginRegistry,
         plugin_id: &str,
         request: ChatCompletionRequest,
     ) -> Result<ChatCompletionResponse, String> {
@@ -98,6 +100,24 @@ impl AiService {
             .json()
             .await
             .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+        let event = crate::plugin::exports::rustpress::plugin::event_handler::OnAiTokenUsedData {
+            plugin_id: plugin_id.to_string(),
+            model: chat_response.model.clone(),
+            prompt_tokens: chat_response.usage.prompt_tokens as i64,
+            completion_tokens: chat_response.usage.completion_tokens as i64,
+            total_tokens: chat_response.usage.total_tokens as i64,
+            operation: "chat_completion".to_string(),
+            user_id: None,
+        };
+        // Trigger AI token usage hook
+        plugin_registry
+            .call_action_hook(
+                "action_ai_token_used",
+                &PluginActionEvent::OnAiTokenUsed(event),
+            )
+            .await
+            .map_err(|e| format!("Failed to trigger AI token usage hook: {}", e))?;
 
         Ok(chat_response)
     }
