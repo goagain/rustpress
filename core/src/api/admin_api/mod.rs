@@ -1,4 +1,5 @@
 pub mod admin_controller;
+pub mod metrics_controller;
 pub mod openai_controller;
 pub mod plugin_controller;
 pub mod post_controller;
@@ -6,6 +7,7 @@ pub mod settings_helper;
 pub mod user_controller;
 
 pub use admin_controller::*;
+pub use metrics_controller::*;
 pub use openai_controller::*;
 pub use plugin_controller::*;
 pub use post_controller::*;

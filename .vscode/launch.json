@@ -15,7 +15,9 @@
       "args": [],
       "cwd": "${workspaceFolder}",
       "env": {
-        "RUST_LOG": "debug"
+        "RUST_LOG": "info",
+        "METRICS_USERNAME": "admin",
+        "METRICS_PASSWORD": "admin"
       },
       "console": "integratedTerminal",
       "sourceLanguages": ["rust"],

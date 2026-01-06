@@ -3,6 +3,7 @@ use crate::api::page_controller::{serve_admin_spa, serve_spa};
 use crate::api::post_controller::{ApiDoc, *};
 use crate::api::upload_controller::*;
 use crate::api::user_controller::*;
+use crate::auth::basic_auth;
 use crate::auth::middleware::auth_middleware;
 use crate::repository::{PostRepository, UserRepository};
 use crate::storage::StorageBackend;
@@ -110,11 +111,40 @@ pub fn create_router<
     // Create admin router with nested routes and middleware
     let admin_router = admin_api::create_admin_router::<PR, UR, SB>();
 
+    // Metrics endpoint with Basic Auth (for Prometheus scraping)
+    let metrics_router = Router::new().route(
+        "/metrics",
+        axum::routing::get(crate::api::admin_api::get_metrics),
+    );
+
+    // Apply Basic Auth to metrics router if configured
+    let metrics_router =
+        if let Some(basic_auth_config) = crate::auth::basic_auth::BasicAuthConfig::from_env() {
+            metrics_router.layer(axum::middleware::from_fn(move |req, next| {
+                crate::auth::basic_auth::basic_auth_middleware(
+                    std::sync::Arc::new(basic_auth_config.clone()),
+                    req,
+                    next,
+                )
+            }))
+        } else {
+            // If no Basic Auth config, fall back to JWT auth
+            metrics_router
+                .layer(axum::middleware::from_fn(
+                    crate::auth::middleware::admin_middleware,
+                ))
+                .layer(axum::middleware::from_fn(
+                    crate::auth::middleware::auth_middleware,
+                ))
+        };
+
     Router::new()
         .merge(public_routes)
         .merge(protected_routes)
         // Nest admin router under /api/admin
         .nest("/api/admin", admin_router)
+        // Nest metrics router under /api/admin (with Basic Auth or JWT fallback)
+        .nest("/api/admin", metrics_router)
         // Admin frontend routes (must be before main frontend and fallback)
         .nest_service("/admin/assets", ServeDir::new("admin-frontend/dist/assets"))
         .route("/admin", get(serve_admin_spa))
@@ -147,5 +177,8 @@ pub fn create_router<
                 ]),
         )
         .layer(TraceLayer::new_for_http())
+        .layer(middleware::from_fn(
+            crate::metrics_middleware::metrics_middleware,
+        ))
         .with_state(state)
 }

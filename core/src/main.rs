@@ -9,6 +9,8 @@ mod api;
 mod auth;
 mod dto;
 mod entity;
+mod metrics;
+mod metrics_middleware;
 mod plugin;
 mod repository;
 mod rpk;
@@ -38,6 +40,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .with_thread_names(false) // Hide thread names for cleaner output
         .with_env_filter(filter) // Apply log level filter
         .init();
+
+    // Initialize Prometheus metrics
+    crate::metrics::init_metrics();
+    tracing::info!("✅ Prometheus metrics initialized");
 
     // Get database URL
     let database_url = std::env::var("DATABASE_URL")
