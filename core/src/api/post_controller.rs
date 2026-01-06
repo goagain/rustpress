@@ -179,6 +179,8 @@ pub async fn create_post<
         }
     };
 
+    tracing::info!("Filtered post data: {:?}", filtered_post_data);
+
     let post = state
         .app_state
         .post_repository

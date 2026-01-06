@@ -118,6 +118,7 @@ pub async fn update_plugin<
         std::collections::HashMap::new()
     };
 
+    let was_enabled = plugin_model.enabled;
     let mut plugin: plugins::ActiveModel = plugin_model.into();
 
     // Update fields based on payload
@@ -138,6 +139,31 @@ pub async fn update_plugin<
         .update(&*db)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Handle plugin loading/unloading based on status change
+    if !was_enabled && updated.enabled {
+        // Plugin was just enabled - load it into registry
+        if let Err(e) = state
+            .plugin_registry
+            .load_plugin_from_database(&updated.plugin_id, &updated.version)
+            .await
+        {
+            tracing::error!("Failed to load enabled plugin {}: {}", updated.plugin_id, e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+        tracing::info!("Plugin {} loaded into registry", updated.plugin_id);
+    } else if was_enabled && !updated.enabled {
+        // Plugin was just disabled - unload it from registry
+        if let Err(e) = state
+            .plugin_registry
+            .unload_plugin(&updated.plugin_id, &updated.version)
+            .await
+        {
+            tracing::error!("Failed to unload disabled plugin {}: {}", updated.name, e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+        tracing::info!("Plugin {} unloaded from registry", updated.name);
+    }
 
     // If plugin was enabled and there are new permissions, return enable response
     // Otherwise return normal response

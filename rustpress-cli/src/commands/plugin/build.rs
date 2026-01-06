@@ -240,13 +240,6 @@ fn generate_manifest() -> Result<()> {
     }
 
     // Dependencies section (always include rustpress-sdk)
-    let mut deps_table = toml::value::Table::new();
-    deps_table.insert(
-        "rustpress-sdk".to_string(),
-        toml::Value::String("*".to_string()),
-    );
-    manifest.insert("dependencies".to_string(), toml::Value::Table(deps_table));
-
     // Add tables to manifest
     manifest.insert("package".to_string(), toml::Value::Table(package_table));
     manifest.insert("plugin".to_string(), toml::Value::Table(plugin_table));

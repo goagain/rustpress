@@ -1,5 +1,4 @@
-use std::hash::{Hash, Hasher};
-use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash};
 
 use log::*;
 
@@ -40,16 +39,10 @@ impl Guest for PoetryPlugin {
     }
 }
 fn on_post_published(mut post: OnPostPublishedData) -> anyhow::Result<OnPostPublishedData, anyhow::Error> {
-    info!("Processing post for poetry enhancement");
-
-    let mut hasher = DefaultHasher::new();
-    post.title.to_string().hash(&mut hasher);
-
-    let hash = hasher.finish() as usize;
-    let line_index = hash % SONNET_LINES.len();
+    let mut rng = rand::rng();
+    let line_index = rand::Rng::random_range(&mut rng, 0..SONNET_LINES.len());
     let poetry_line = SONNET_LINES[line_index];
-    let new_content = format!("> *{}*<br/><br/>{}", poetry_line, post.content);
-    post.content = new_content;
+    post.content = format!("{}\n\n{}", post.content, poetry_line);
 
     Ok(post)
 }

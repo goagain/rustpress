@@ -58,7 +58,7 @@ fn validate_plugin_hooks(
     use crate::plugin::hook_registry::HookRegistry;
     let mut valid_hooks = Vec::new();
 
-    for hook_name in &manifest.hooks.registered {
+    for hook_name in &manifest.plugin.hooks {
         if !HookRegistry::is_valid_hook(hook_name) {
             return Err(format!("Unknown hook: {}", hook_name).into());
         }

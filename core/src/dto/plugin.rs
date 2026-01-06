@@ -79,13 +79,20 @@ pub struct PluginManifest {
     pub package: PackageInfo,
     /// Permissions configuration
     #[serde(default)]
-    pub permissions: PermissionsConfig,
-    /// Hooks configuration
+    pub permissions: ManifestPermissions,
+    /// Plugin configuration
     #[serde(default)]
-    pub hooks: HooksConfig,
-    /// Optional permissions with descriptions (for backward compatibility)
+    pub plugin: PluginConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PluginConfig {
+    /// Binary file name
     #[serde(default)]
-    pub optional_permissions: std::collections::HashMap<String, String>,
+    pub binary: Option<String>,
+    /// Hooks that this plugin wants to register
+    #[serde(default)]
+    pub hooks: Vec<String>,
 }
 
 /// Package information in manifest
@@ -111,6 +118,17 @@ pub struct PermissionsConfig {
     /// Required permissions that must be granted
     #[serde(default)]
     pub required: Vec<String>,
+}
+
+/// Manifest permissions section
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ManifestPermissions {
+    /// Required permissions that must be granted
+    #[serde(default)]
+    pub required: Vec<String>,
+    /// Optional permissions that can be granted
+    #[serde(default)]
+    pub optional: Vec<String>,
 }
 
 /// Hooks configuration in manifest

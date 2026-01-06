@@ -118,6 +118,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Arc::new(db.clone()),
     ));
 
+    // Load all enabled plugins from database
+    plugin_registry
+        .load_enabled_plugins()
+        .await
+        .expect("Failed to load enabled plugins");
+
     tracing::info!("✅ Plugin system initialized");
 
     // Initialize storage backend (local filesystem for now, can be switched to S3 later)

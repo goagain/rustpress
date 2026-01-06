@@ -57,6 +57,16 @@ impl RpkProcessor {
         Ok(())
     }
 
+    /// Get the install directory
+    pub fn install_dir(&self) -> &Path {
+        &self.install_dir
+    }
+
+    /// Get the cache directory
+    pub fn cache_dir(&self) -> &Path {
+        &self.cache_dir
+    }
+
     /// Install RPK package (only saves to install directory)
     pub async fn install_rpk(
         &self,

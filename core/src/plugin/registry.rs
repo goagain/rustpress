@@ -6,7 +6,7 @@ use crate::plugin::exports::rustpress::plugin::event_handler::{
 };
 use crate::plugin::loaded_plugin::LoadedPlugin;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -34,6 +34,81 @@ impl PluginRegistry {
             hook_to_plugins: Arc::new(RwLock::new(HashMap::new())),
             rpk_processor,
         }
+    }
+
+    /// Load a plugin from RPK data
+    pub async fn load_plugin_from_rpk_data(
+        &self,
+        rpk_data: &[u8],
+    ) -> Result<LoadedPlugin, Box<dyn std::error::Error + Send + Sync>> {
+        use std::fs;
+        use tokio::task;
+
+        // Create a temporary directory for extraction
+        let temp_id = format!("temp_{}", chrono::Utc::now().timestamp());
+        let extract_dir = self.rpk_processor.cache_dir().join(&temp_id);
+
+        // Clone data for the blocking task
+        let rpk_data_clone = rpk_data.to_vec();
+        let extract_dir_clone = extract_dir.clone();
+
+        // Extract the RPK (zip) data to the temporary directory
+        task::spawn_blocking(move || {
+            fs::create_dir_all(&extract_dir_clone)?;
+            let cursor = std::io::Cursor::new(rpk_data_clone);
+            let mut archive = zip::ZipArchive::new(cursor)?;
+            for i in 0..archive.len() {
+                let mut file_in_zip = archive.by_index(i)?;
+                let out_path = extract_dir_clone.join(file_in_zip.name());
+                if file_in_zip.name().ends_with('/') {
+                    fs::create_dir_all(&out_path)?;
+                } else {
+                    if let Some(p) = out_path.parent() {
+                        if !p.exists() {
+                            fs::create_dir_all(&p)?;
+                        }
+                    }
+                    let mut out_file = fs::File::create(&out_path)?;
+                    std::io::copy(&mut file_in_zip, &mut out_file)?;
+                }
+            }
+            Ok::<_, Box<dyn std::error::Error + Send + Sync>>(())
+        })
+        .await??;
+
+        // Read the manifest to get plugin info
+        let manifest_path = extract_dir.join("manifest.toml");
+        let manifest_content = fs::read_to_string(&manifest_path)?;
+        let manifest: crate::dto::plugin::PluginManifest = toml::from_str(&manifest_content)?;
+
+        // Locate the .wasm file
+        let plugin_wasm_path = extract_dir.join("plugin.wasm");
+        if !plugin_wasm_path.exists() {
+            let _ = fs::remove_dir_all(&extract_dir);
+            return Err("plugin.wasm not found in RPK package".into());
+        }
+
+        // Load the WASM plugin
+        let plugin_data = fs::read(&plugin_wasm_path)?;
+        let component =
+            wasmtime::component::Component::from_binary(self.engine.get_engine(), &plugin_data)?;
+
+        // Get registered hooks
+        let registered_hooks = manifest.plugin.hooks.clone();
+
+        // Create LoadedPlugin
+        let loaded_plugin = LoadedPlugin {
+            plugin_id: manifest.package.id.clone(),
+            version: manifest.package.version.clone(),
+            registered_hooks: registered_hooks.clone(),
+            component: Some(component),
+            granted_permissions: registered_hooks.iter().cloned().collect(),
+        };
+
+        // Cleanup temporary directory
+        let _ = fs::remove_dir_all(&extract_dir);
+
+        Ok(loaded_plugin)
     }
 
     /// Load a plugin from WASM file
@@ -231,10 +306,77 @@ impl PluginRegistry {
     pub async fn load_enabled_plugins(
         &self,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        // TODO: Implement loading enabled plugins from database
-        // For now, this is a placeholder
-        tracing::info!("Loading enabled plugins from database");
+        // Load all enabled plugins from database
+        let enabled_plugins = crate::entity::plugins::Entity::find()
+            .filter(crate::entity::plugins::Column::Enabled.eq(true))
+            .filter(crate::entity::plugins::Column::Status.eq("enabled"))
+            .all(&*self.db)
+            .await?;
+
+        tracing::info!(
+            "Found {} enabled plugins in database",
+            enabled_plugins.len()
+        );
+
+        for plugin_model in enabled_plugins {
+            tracing::info!(
+                "Loading plugin: {} v{}",
+                plugin_model.name,
+                plugin_model.version
+            );
+            if let Err(e) = self
+                .load_plugin_from_database(&plugin_model.plugin_id, &plugin_model.version)
+                .await
+            {
+                tracing::error!("Failed to load plugin {}: {}", plugin_model.plugin_id, e);
+                // Continue loading other plugins even if one fails
+            }
+        }
+
         Ok(())
+    }
+
+    /// Load a plugin from database into registry
+    pub async fn load_plugin_from_database(
+        &self,
+        plugin_id: &str,
+        version: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // Find plugin in database
+        let plugin_model = crate::entity::plugins::Entity::find()
+            .filter(crate::entity::plugins::Column::PluginId.eq(plugin_id))
+            .filter(crate::entity::plugins::Column::Version.eq(version))
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| format!("Plugin {}-{} not found in database", plugin_id, version))?;
+
+        // Load plugin from installed directory
+        let plugin_path = self
+            .rpk_processor
+            .install_dir()
+            .join(format!("{}-{}.rpk", plugin_id, version));
+        if !plugin_path.exists() {
+            return Err(format!("Plugin file not found: {:?}", plugin_path).into());
+        }
+
+        // Load and instantiate the plugin
+        let plugin_data = std::fs::read(&plugin_path)?;
+        let loaded_plugin = self.load_plugin_from_rpk_data(&plugin_data).await?;
+
+        // Register the plugin
+        self.register_plugin(&loaded_plugin).await?;
+
+        Ok(())
+    }
+
+    /// Unload a plugin from registry
+    pub async fn unload_plugin(
+        &self,
+        plugin_name: &str,
+        version: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.unregister_plugin_with_version(plugin_name, version)
+            .await
     }
 
     /// Install a plugin from RPK data
@@ -255,13 +397,13 @@ impl PluginRegistry {
             .await?;
 
         // Extract plugin_id and version from the package manifest
-        let plugin_id = package.manifest.package.name.clone();
+        let plugin_id = package.manifest.package.id.clone();
         let version = package.manifest.package.version.clone();
         let manifest_plugin_id = package.manifest.package.id.clone();
 
         // Check if plugin already exists
         let existing_plugin = crate::entity::plugins::Entity::find()
-            .filter(crate::entity::plugins::Column::Name.eq(&plugin_id))
+            .filter(crate::entity::plugins::Column::PluginId.eq(&plugin_id))
             .one(&*self.db)
             .await?;
 
@@ -434,6 +576,15 @@ impl PluginExecuter {
         data: &PluginFilterEvent,
     ) -> anyhow::Result<PluginFilterEvent> {
         let plugins = self.registry.get_plugins_for_hook(hook_name).await;
+        tracing::info!(
+            "Calling filter hook {} with data: {:?} and {} plugins",
+            hook_name,
+            data,
+            &plugins.len()
+        );
+        for plugin in &plugins {
+            tracing::info!("Plugin: {:?}", plugin.plugin_id);
+        }
 
         let mut modified_data = data.clone();
         for plugin in plugins {
@@ -477,6 +628,6 @@ impl PluginExecuter {
                 }
             }
         }
-        Ok(data.clone())
+        Ok(modified_data)
     }
 }
