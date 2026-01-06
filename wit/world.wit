@@ -4,5 +4,6 @@ world plugin-world {
     import logger;
     import ai;
     import permissions;
+    import posts;
     export event-handler;
 }

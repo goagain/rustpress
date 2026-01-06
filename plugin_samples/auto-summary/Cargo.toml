@@ -37,6 +37,7 @@ hooks = [
 # Required permissions - plugin cannot function without these
 required = [
     "ai:chat",            # AI chat completion access
+    "posts:list_categories", # List categories access
 ]
 
 # Optional permissions - enhance functionality but not required

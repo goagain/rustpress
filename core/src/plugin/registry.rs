@@ -644,6 +644,7 @@ impl PluginExecuter {
             plugin.plugin_id.clone(),
             plugin.granted_permissions.clone(),
             self.ai_client.clone(),
+            self.db.clone(),
         ))
     }
 

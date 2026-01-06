@@ -3,3 +3,4 @@
 pub mod ai;
 pub mod logger;
 pub mod permissions;
+pub mod posts;

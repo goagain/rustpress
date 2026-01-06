@@ -10,6 +10,7 @@ wit_bindgen::generate!({
 
 use crate::exports::rustpress::plugin::event_handler::*;
 use crate::rustpress::plugin::ai::*;
+use crate::rustpress::plugin::posts::*;
 struct AutoSummaryPlugin;
 
 impl Guest for AutoSummaryPlugin {
@@ -56,14 +57,25 @@ fn on_post_published(
         Ok(summary) => {
             post.description = Some(summary.clone());
             info!("Generated summary: {}", summary);
-            Ok(post)
         }
         Err(e) => {
             error!("Failed to generate summary: {}", e);
             // Return post unchanged if AI fails
-            Ok(post)
+            return Err(anyhow::anyhow!("Failed to generate summary: {}", e));
         }
     }
+
+    match generate_category(&post) {
+        Ok(category) => {
+            info!("Generated category: {}", category);
+            post.category = Some(category);
+        }
+        Err(e) => {
+            error!("Failed to generate category: {}", e);
+            return Err(anyhow::anyhow!("Failed to generate category: {}", e));
+        }
+    }
+    Ok(post)
 }
 
 fn generate_summary(post: &OnPostPublishedData) -> anyhow::Result<String> {
@@ -102,6 +114,57 @@ fn generate_summary(post: &OnPostPublishedData) -> anyhow::Result<String> {
                 let summary = choice.message.content.trim();
                 info!("Generated summary: {}", summary);
                 Ok(summary.to_string())
+            } else {
+                Err(anyhow::anyhow!("No response choices returned from AI"))
+            }
+        },
+        Err(e) => Err(anyhow::anyhow!("AI chat completion failed: {}", e)),
+    }
+}
+
+fn generate_category(post: &OnPostPublishedData) -> anyhow::Result<String> {
+    if let Some(post) = post.category.clone() {
+        info!("Post already has category, skipping auto-label");
+        return Ok(post);
+    }
+
+    let categories = list_categories();
+
+    let system_prompt = format!("You are a helpful assistant that generates labels for blog posts.
+        Your task is to generate a label for the given blog post.
+        The label should be a single word or phrase that describes the post.
+        The label should be in the same language as the blog post. If the language is not detected, use English.
+        The label should be concise and to the point.
+
+        The following is a list of categories, ranked by frequency (categories appearing more often are listed first).
+        Categories: {:?}.
+        If the post is not related to any of the categories, generate a new category.
+    ", categories.join(", "));
+
+    let user_prompt = format!(
+        "Title: {}\n\nContent: {}",
+        post.title,
+        post.content
+    );
+
+    let messages = vec![ChatMessage {
+        role: "system".to_string(),
+        content: system_prompt.to_string(),
+    }, ChatMessage {
+        role: "user".to_string(),
+        content: user_prompt,
+    }];
+
+    match chat_completion(&ChatCompletionRequest {
+        model: None, // Use default model
+        messages,
+        max_tokens: None,
+    }) {
+        Ok(response) => {
+            if let Some(choice) = response.choices.first() {
+                let category = choice.message.content.trim();
+                info!("Generated category: {}", category);
+                Ok(category.to_string())
             } else {
                 Err(anyhow::anyhow!("No response choices returned from AI"))
             }

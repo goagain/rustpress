@@ -7,6 +7,8 @@ pub mod loaded_plugin;
 pub mod registry;
 pub mod types;
 
+use std::sync::Arc;
+
 use wasmtime_wasi::{ResourceTable, WasiCtx};
 
 wasmtime::component::bindgen!({
@@ -21,6 +23,7 @@ pub struct PluginHostState {
     plugin_id: String,
     granted_permissions: std::collections::HashSet<String>,
     ai_helper: Option<std::sync::Arc<crate::plugin::host::ai::AiHelper>>,
+    db: Arc<sea_orm::DatabaseConnection>,
 }
 
 impl PluginHostState {
@@ -29,6 +32,7 @@ impl PluginHostState {
         plugin_id: String,
         granted_permissions: std::collections::HashSet<String>,
         ai_helper: Option<std::sync::Arc<crate::plugin::host::ai::AiHelper>>,
+        db: Arc<sea_orm::DatabaseConnection>,
     ) -> Self {
         let ctx = wasmtime_wasi::WasiCtxBuilder::new()
             .inherit_stderr()
@@ -42,6 +46,7 @@ impl PluginHostState {
             plugin_id,
             granted_permissions,
             ai_helper,
+            db,
         }
     }
 }
