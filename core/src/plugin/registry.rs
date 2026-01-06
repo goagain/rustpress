@@ -40,6 +40,7 @@ impl PluginRegistry {
     pub async fn load_plugin_from_rpk_data(
         &self,
         rpk_data: &[u8],
+        plugin_model: &crate::entity::plugins::Model,
     ) -> Result<LoadedPlugin, Box<dyn std::error::Error + Send + Sync>> {
         use std::fs;
         use tokio::task;
@@ -96,13 +97,31 @@ impl PluginRegistry {
         // Get registered hooks
         let registered_hooks = manifest.plugin.hooks.clone();
 
+        // Get granted permissions (for now, include all required permissions)
+        // TODO: Implement proper permission granting based on user approval
+        let mut granted_permissions = std::collections::HashSet::new();
+
+        // Add required permissions from manifest (for plugins without stored permissions)
+        // If plugin has stored granted_permissions in database, use those instead
+        if let Some(stored_permissions) = &plugin_model.granted_permissions {
+            if let Ok(perms) = serde_json::from_value::<Vec<String>>(stored_permissions.clone()) {
+                granted_permissions.extend(perms);
+            } else {
+                // Fallback to manifest permissions if stored permissions are invalid
+                granted_permissions.extend(manifest.permissions.required.iter().cloned());
+            }
+        } else {
+            // No stored permissions, use manifest permissions
+            granted_permissions.extend(manifest.permissions.required.iter().cloned());
+        }
+
         // Create LoadedPlugin
         let loaded_plugin = LoadedPlugin {
             plugin_id: manifest.package.id.clone(),
             version: manifest.package.version.clone(),
             registered_hooks: registered_hooks.clone(),
             component: Some(component),
-            granted_permissions: registered_hooks.iter().cloned().collect(),
+            granted_permissions,
         };
 
         // Cleanup temporary directory
@@ -329,6 +348,25 @@ impl PluginRegistry {
                 .await
             {
                 tracing::error!("Failed to load plugin {}: {}", plugin_model.plugin_id, e);
+
+                // Disable the plugin if loading failed
+                if let Err(disable_err) = self
+                    .disable_plugin(&plugin_model.plugin_id, &plugin_model.version)
+                    .await
+                {
+                    tracing::error!(
+                        "Failed to disable broken plugin {}: {}",
+                        plugin_model.plugin_id,
+                        disable_err
+                    );
+                } else {
+                    tracing::warn!(
+                        "Disabled broken plugin: {} v{}",
+                        plugin_model.plugin_id,
+                        plugin_model.version
+                    );
+                }
+
                 // Continue loading other plugins even if one fails
             }
         }
@@ -361,10 +399,42 @@ impl PluginRegistry {
 
         // Load and instantiate the plugin
         let plugin_data = std::fs::read(&plugin_path)?;
-        let loaded_plugin = self.load_plugin_from_rpk_data(&plugin_data).await?;
+        let loaded_plugin = self
+            .load_plugin_from_rpk_data(&plugin_data, &plugin_model)
+            .await?;
 
         // Register the plugin
         self.register_plugin(&loaded_plugin).await?;
+
+        Ok(())
+    }
+
+    /// Disable a plugin in the database
+    pub async fn disable_plugin(
+        &self,
+        plugin_id: &str,
+        version: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // Find and update the plugin
+        let mut plugin: crate::entity::plugins::ActiveModel =
+            crate::entity::plugins::Entity::find()
+                .filter(crate::entity::plugins::Column::PluginId.eq(plugin_id))
+                .filter(crate::entity::plugins::Column::Version.eq(version))
+                .one(&*self.db)
+                .await?
+                .ok_or_else(|| format!("Plugin {}-{} not found", plugin_id, version))?
+                .into();
+
+        plugin.enabled = sea_orm::Set(false);
+        plugin.status = sea_orm::Set("disabled".to_string());
+        plugin.updated_at = sea_orm::Set(chrono::Utc::now().into());
+
+        plugin.update(&*self.db).await?;
+
+        // Unload from registry if it's currently loaded
+        if let Err(e) = self.unload_plugin(plugin_id, version).await {
+            tracing::warn!("Failed to unload plugin {} from registry: {}", plugin_id, e);
+        }
 
         Ok(())
     }
@@ -487,7 +557,27 @@ impl PluginRegistry {
         plugin_id: &str,
         permissions: &std::collections::HashMap<String, bool>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        // TODO: Implement permission persistence
+        // Find the plugin
+        let plugin = crate::entity::plugins::Entity::find()
+            .filter(crate::entity::plugins::Column::Name.eq(plugin_id))
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| format!("Plugin '{}' not found", plugin_id))?;
+
+        // Convert permissions map to list of granted permissions
+        let granted_permissions: Vec<String> = permissions
+            .iter()
+            .filter_map(|(perm, &granted)| if granted { Some(perm.clone()) } else { None })
+            .collect();
+
+        // Update the plugin's granted_permissions field
+        let mut plugin_model: crate::entity::plugins::ActiveModel = plugin.into();
+        plugin_model.granted_permissions =
+            sea_orm::Set(Some(serde_json::json!(granted_permissions)));
+        plugin_model.updated_at = sea_orm::Set(chrono::Utc::now().into());
+
+        plugin_model.update(&*self.db).await?;
+
         tracing::info!(
             "Updated permissions for plugin {}: {:?}",
             plugin_id,

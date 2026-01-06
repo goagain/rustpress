@@ -8,8 +8,8 @@ wit_bindgen::generate!({
     pub_export_macro: true
 });
 
-use crate::rustpress::plugin::ai::*;
 use crate::exports::rustpress::plugin::event_handler::*;
+use crate::rustpress::plugin::ai::*;
 struct AutoSummaryPlugin;
 
 impl Guest for AutoSummaryPlugin {
@@ -65,49 +65,45 @@ fn on_post_published(
 }
 
 fn generate_summary(post: &OnPostPublishedData) -> anyhow::Result<String> {
-    // Create the AI prompt in English
-    let prompt = format!(
-        "Please provide a concise summary of this blog post in less than 50 words.\n\nTitle: {}\n\nContent: {}\n\nSummary:",
+    let system_prompt = "You are a helpful assistant that generates summaries of blog posts. 
+        Your task is to generate a summary of the given blog post in less than 50 words.
+        The summary should be in the same language as the blog post. If the language is not detected, use English.
+        The summary should be concise and to the point.
+        The summary should be in markdown format.
+
+        Please only return the summary, no other text.
+    ";
+
+    let user_prompt = format!(
+        "Title: {}\n\nContent: {}",
         post.title,
-        // Limit content to first 1000 characters to avoid token limits
-        if post.content.len() > 1000 {
-            format!("{}...", &post.content[..1000])
-        } else {
-            post.content.clone()
-        }
+        post.content
     );
 
     // Create chat completion request
     let messages = vec![ChatMessage {
+        role: "system".to_string(),
+        content: system_prompt.to_string(),
+    }, ChatMessage {
         role: "user".to_string(),
-        content: prompt,
+        content: user_prompt,
     }];
 
-    let request = ChatCompletionRequest {
+    // Call AI chat completion
+    match chat_completion(&ChatCompletionRequest {
         model: None, // Use default model
         messages,
-        max_tokens: Some(100), // Limit response length
-    };
-
-    // Call AI chat completion
-    match chat_completion(&request) {
+        max_tokens: None,
+    }) {
         Ok(response) => {
             if let Some(choice) = response.choices.first() {
                 let summary = choice.message.content.trim();
-
-                // Ensure summary is under 50 words
-                let word_count = summary.split_whitespace().count();
-                if word_count > 50 {
-                    // Truncate to first 50 words
-                    let words: Vec<&str> = summary.split_whitespace().take(50).collect();
-                    Ok(format!("{}...", words.join(" ")))
-                } else {
-                    Ok(summary.to_string())
-                }
+                info!("Generated summary: {}", summary);
+                Ok(summary.to_string())
             } else {
                 Err(anyhow::anyhow!("No response choices returned from AI"))
             }
-        }
+        },
         Err(e) => Err(anyhow::anyhow!("AI chat completion failed: {}", e)),
     }
 }

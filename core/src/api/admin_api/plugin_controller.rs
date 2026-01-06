@@ -130,6 +130,22 @@ pub async fn update_plugin<
         } else {
             "disabled".to_string()
         });
+        if enabled {
+            let manifest = plugin.manifest.clone();
+            if let Ok(manifest_obj) = serde_json::from_value::<crate::dto::plugin::PluginManifest>(
+                manifest.unwrap().into(),
+            ) {
+                let mut permissions_set = std::collections::HashSet::new();
+                for perm in manifest_obj.permissions.required {
+                    permissions_set.insert(perm);
+                }
+                let permissions: Vec<serde_json::Value> = permissions_set
+                    .into_iter()
+                    .map(|perm| serde_json::Value::String(perm))
+                    .collect();
+                plugin.granted_permissions = Set(Some(serde_json::Value::Array(permissions)));
+            }
+        }
     }
     if let Some(config) = &payload.config {
         plugin.config = Set(Some(config.clone()));
@@ -142,7 +158,7 @@ pub async fn update_plugin<
 
     // Handle plugin loading/unloading based on status change
     if !was_enabled && updated.enabled {
-        // Plugin was just enabled - load it into registry
+        // Load plugin into registry
         if let Err(e) = state
             .plugin_registry
             .load_plugin_from_database(&updated.plugin_id, &updated.version)
@@ -523,10 +539,11 @@ pub async fn review_plugin_permissions<
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    // Update plugin status to enabled
+    // Update plugin status to enabled and set granted permissions
     let mut plugin_model: plugins::ActiveModel = plugin.into();
     plugin_model.status = Set("enabled".to_string());
     plugin_model.enabled = Set(true);
+    plugin_model.granted_permissions = Set(Some(serde_json::json!(payload.approved_permissions)));
     plugin_model
         .update(&*db)
         .await

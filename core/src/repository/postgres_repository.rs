@@ -1,9 +1,11 @@
-use crate::dto::{CreatePostRequest, Post, PostVersion, PostDraft, SaveDraftRequest};
-use crate::entity::{posts, post_versions, post_drafts};
+use crate::dto::{CreatePostRequest, Post, PostDraft, PostVersion, SaveDraftRequest};
+use crate::entity::{post_drafts, post_versions, posts};
 use crate::repository::PostRepository;
 use async_trait::async_trait;
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
+};
 use std::sync::Arc;
 
 /// PostgreSQL implementation of post repository (using SeaORM)
@@ -50,6 +52,7 @@ impl PostRepository for PostgresPostRepository {
             content: Set(request.content),
             category: Set(request.category),
             author_id: Set(request.author_id),
+            description: Set(request.description),
             // created_at and updated_at are automatically set by ActiveModelBehavior
             // archived_at and deleted_at default to None
             ..Default::default()
@@ -79,7 +82,7 @@ impl PostRepository for PostgresPostRepository {
                     .order_by_desc(post_versions::Column::VersionNumber)
                     .one(self.db.as_ref())
                     .await?;
-                
+
                 let next_version = match max_version {
                     Some(v) => v.version_number + 1,
                     None => 1,
@@ -153,13 +156,21 @@ impl PostRepository for PostgresPostRepository {
         }
     }
 
-    async fn hard_delete(&self, id: &i64) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
-        let result = posts::Entity::delete_by_id(*id).exec(self.db.as_ref()).await?;
+    async fn hard_delete(
+        &self,
+        id: &i64,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        let result = posts::Entity::delete_by_id(*id)
+            .exec(self.db.as_ref())
+            .await?;
         Ok(result.rows_affected > 0)
     }
 
     // Version management
-    async fn get_versions(&self, post_id: &i64) -> Result<Vec<PostVersion>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn get_versions(
+        &self,
+        post_id: &i64,
+    ) -> Result<Vec<PostVersion>, Box<dyn std::error::Error + Send + Sync>> {
         let models = post_versions::Entity::find()
             .filter(post_versions::Column::PostId.eq(*post_id))
             .order_by_desc(post_versions::Column::VersionNumber)
@@ -169,8 +180,13 @@ impl PostRepository for PostgresPostRepository {
         Ok(models.into_iter().map(PostVersion::from).collect())
     }
 
-    async fn get_version(&self, version_id: &i64) -> Result<Option<PostVersion>, Box<dyn std::error::Error + Send + Sync>> {
-        let model = post_versions::Entity::find_by_id(*version_id).one(self.db.as_ref()).await?;
+    async fn get_version(
+        &self,
+        version_id: &i64,
+    ) -> Result<Option<PostVersion>, Box<dyn std::error::Error + Send + Sync>> {
+        let model = post_versions::Entity::find_by_id(*version_id)
+            .one(self.db.as_ref())
+            .await?;
         Ok(model.map(PostVersion::from))
     }
 
@@ -190,7 +206,9 @@ impl PostRepository for PostgresPostRepository {
             }
 
             // Get current post
-            let post = posts::Entity::find_by_id(*post_id).one(self.db.as_ref()).await?;
+            let post = posts::Entity::find_by_id(*post_id)
+                .one(self.db.as_ref())
+                .await?;
             if let Some(post_model) = post {
                 // Create a version of current state before restoring
                 let max_version = post_versions::Entity::find()
@@ -198,7 +216,7 @@ impl PostRepository for PostgresPostRepository {
                     .order_by_desc(post_versions::Column::VersionNumber)
                     .one(self.db.as_ref())
                     .await?;
-                
+
                 let next_version = match max_version {
                     Some(v) => v.version_number + 1,
                     None => 1,
@@ -208,7 +226,10 @@ impl PostRepository for PostgresPostRepository {
                     post_id: Set(*post_id),
                     title: Set(post_model.title.clone()),
                     content: Set(post_model.content.clone()),
-                    category: Set(post_model.category.clone().unwrap_or_else(|| "".to_string())),
+                    category: Set(post_model
+                        .category
+                        .clone()
+                        .unwrap_or_else(|| "".to_string())),
                     version_number: Set(next_version),
                     created_by: Set(user_id),
                     change_note: Set(Some("Auto-created before restore".to_string())),
@@ -319,7 +340,9 @@ impl PostRepository for PostgresPostRepository {
         };
 
         if let Some(draft) = model {
-            post_drafts::Entity::delete_by_id(draft.id).exec(self.db.as_ref()).await?;
+            post_drafts::Entity::delete_by_id(draft.id)
+                .exec(self.db.as_ref())
+                .await?;
             Ok(true)
         } else {
             Ok(false)
@@ -342,7 +365,7 @@ impl PostRepository for PostgresPostRepository {
     async fn get_category_stats(
         &self,
     ) -> Result<Vec<(String, i64)>, Box<dyn std::error::Error + Send + Sync>> {
-        use sea_orm::{prelude::*, QuerySelect};
+        use sea_orm::{QuerySelect, prelude::*};
 
         let stats = posts::Entity::find()
             .filter(posts::Column::Category.is_not_null())

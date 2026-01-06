@@ -8,6 +8,7 @@ mod m20260103_000005_add_plugin_manifest;
 mod m20260104_000006_add_plugin_permissions;
 mod m20260105_000007_add_plugin_status;
 mod m20260106_000008_add_plugin_id;
+mod m20260107_000009_add_granted_permissions;
 
 pub fn migration_list() -> Vec<Box<dyn MigrationTrait + 'static>> {
     vec![
@@ -19,5 +20,6 @@ pub fn migration_list() -> Vec<Box<dyn MigrationTrait + 'static>> {
         Box::new(m20260104_000006_add_plugin_permissions::Migration),
         Box::new(m20260105_000007_add_plugin_status::Migration),
         Box::new(m20260106_000008_add_plugin_id::Migration),
+        Box::new(m20260107_000009_add_granted_permissions::Migration),
     ]
 }

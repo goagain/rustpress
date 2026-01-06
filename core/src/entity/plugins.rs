@@ -20,6 +20,7 @@ pub struct Model {
     pub manifest: Option<Json>,
     pub status: String,
     pub plugin_id: String,
+    pub granted_permissions: Option<Json>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -61,6 +61,12 @@ impl AiService {
         }
 
         let api_key = self.get_default_api_key().await?;
+        let default_model = api_key.default_model;
+
+        let mut request = request;
+        if request.model.is_none() {
+            request.model = default_model;
+        }
 
         // Prepare the HTTP request
         let endpoint = api_key
