@@ -4,6 +4,7 @@ use crate::repository::{
 };
 use sea_orm::{Database, DbErr};
 use std::sync::Arc;
+mod ai;
 mod api;
 mod auth;
 mod dto;
@@ -13,7 +14,6 @@ mod repository;
 mod rpk;
 mod seed;
 mod storage;
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Initialize color-eyre for better error reporting with stack traces
@@ -87,8 +87,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         user_repository,
     ));
 
+    // Create OpenAI API key repository
+    let openai_api_key_repository = Arc::new(
+        crate::repository::PostgresOpenAIApiKeyRepository::new(db.clone()),
+    );
+
+    // Create core AI service
+    let ai_service = Arc::new(crate::ai::AiService::new(openai_api_key_repository));
+
     // Create AI helper for plugins
-    let ai_helper = Arc::new(crate::plugin::ai::AiHelper::new(Arc::new(db.clone())));
+    let ai_helper = Arc::new(crate::plugin::host::ai::AiHelper::new(ai_service));
 
     // Create RPK processor
     let rpk_processor = Arc::new(crate::rpk::RpkProcessor::new(

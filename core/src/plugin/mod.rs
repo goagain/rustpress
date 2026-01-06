@@ -1,11 +1,9 @@
 //! Plugin system implementation
 
-pub mod ai;
 pub mod engine;
 pub mod hook_registry;
+pub mod host;
 pub mod loaded_plugin;
-pub mod logger;
-pub mod permissions;
 pub mod registry;
 pub mod types;
 
@@ -22,11 +20,16 @@ pub struct PluginHostState {
     table: ResourceTable,
     plugin_id: String,
     granted_permissions: std::collections::HashSet<String>,
+    ai_helper: Option<std::sync::Arc<crate::plugin::host::ai::AiHelper>>,
 }
 
 impl PluginHostState {
     /// Create a new plugin host state
-    pub fn new(plugin_id: String, granted_permissions: std::collections::HashSet<String>) -> Self {
+    pub fn new(
+        plugin_id: String,
+        granted_permissions: std::collections::HashSet<String>,
+        ai_helper: Option<std::sync::Arc<crate::plugin::host::ai::AiHelper>>,
+    ) -> Self {
         let ctx = wasmtime_wasi::WasiCtxBuilder::new()
             .inherit_stderr()
             .inherit_stdout()
@@ -38,6 +41,7 @@ impl PluginHostState {
             table,
             plugin_id,
             granted_permissions,
+            ai_helper,
         }
     }
 }

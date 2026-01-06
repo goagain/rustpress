@@ -532,14 +532,14 @@ impl PluginRegistry {
 
 pub struct PluginExecuter {
     registry: Arc<PluginRegistry>,
-    ai_client: Option<Arc<super::ai::AiHelper>>,
+    ai_client: Option<Arc<crate::plugin::host::ai::AiHelper>>,
     db: Arc<sea_orm::DatabaseConnection>,
 }
 
 impl PluginExecuter {
     pub fn new(
         registry: Arc<PluginRegistry>,
-        ai_client: Option<Arc<super::ai::AiHelper>>,
+        ai_client: Option<Arc<crate::plugin::host::ai::AiHelper>>,
         db: Arc<sea_orm::DatabaseConnection>,
     ) -> Self {
         Self {
@@ -553,6 +553,7 @@ impl PluginExecuter {
         Ok(super::PluginHostState::new(
             plugin.plugin_id.clone(),
             plugin.granted_permissions.clone(),
+            self.ai_client.clone(),
         ))
     }
 

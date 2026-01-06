@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use tracing::*;
 
-use crate::plugin::logger::LogLevel;
+use crate::plugin::host::logger::LogLevel;
 use crate::plugin::rustpress::plugin::logger::*;
 
-#[async_trait]
-impl Host for super::PluginHostState {
+#[async_trait::async_trait]
+impl Host for super::super::PluginHostState {
     async fn log(&mut self, level: LogLevel, msg: String) -> Result<(), wasmtime::Error> {
         match level {
             LogLevel::Trace => trace!(plugin_id = %self.plugin_id, "[{}] {}", self.plugin_id, msg),

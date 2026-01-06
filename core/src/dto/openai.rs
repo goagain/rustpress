@@ -88,7 +88,7 @@ pub struct ChatCompletionRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     pub messages: Vec<ChatMessage>,
-    pub max_tokens: Option<i32>,
+    pub max_tokens: Option<i64>,
 }
 
 /// Chat completion choice

@@ -8,12 +8,13 @@ wit_bindgen::generate!({
     pub_export_macro: true
 });
 
+use crate::exports::rustpress::plugin::ai::*;
 use crate::exports::rustpress::plugin::event_handler::*;
 struct {{plugin_name_pascal}}Plugin;
 
 impl Guest for {{plugin_name_pascal}}Plugin {
     fn handle_filter(event: PluginFilterEvent) -> anyhow::Result<PluginFilterEvent, String> {
-        crate::logger::init();
+        logger::Logger::init();
 
         info!("Processing event for {{plugin_name}} plugin");
         match event {
@@ -25,7 +26,7 @@ impl Guest for {{plugin_name_pascal}}Plugin {
         }
     }
     fn handle_action(event: PluginActionEvent) {
-        crate::logger::init();
+        logger::Logger::init();
 
         info!("Processing action for {{plugin_name}} plugin");
         // For now, just log the event

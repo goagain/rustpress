@@ -1,0 +1,8 @@
+package rustpress:plugin;
+
+world plugin-world {
+    import logger;
+    import ai;
+    import permissions;
+    export event-handler;
+}
