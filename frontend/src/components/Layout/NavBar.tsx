@@ -27,14 +27,14 @@ export function NavBar({ authenticated, onLogin, onLogout }: NavBarProps) {
                 {/* Desktop Nav */}
                 <div className="hidden md:flex items-center gap-8">
                     {/* Logo */}
-                    <div className="flex items-center gap-2 group cursor-pointer">
+                    <Link to="/" className="flex items-center gap-2 group cursor-pointer">
                         <div className="bg-orange-500 p-1.5 rounded-lg group-hover:rotate-12 transition-transform">
                             <PenTool size={20} className="text-white" />
                         </div>
                         <span className="text-xl font-bold tracking-tight text-slate-900">
                             Rust<span className="text-orange-500">Press</span>
                         </span>
-                    </div>
+                    </Link>
                     <Link to="/" className="flex items-center gap-1.5 text-sm font-semibold text-orange-500">
                         <Home size={18} />
                         Home
@@ -75,7 +75,15 @@ export function NavBar({ authenticated, onLogin, onLogout }: NavBarProps) {
                     </a>
                 </div>
                 {/* Mobile Menu Button */}
-                <div className="md:hidden">
+                <div className="md:hidden flex items-center justify-between w-full">
+                    <Link to="/" className="flex items-center gap-2 group cursor-pointer">
+                        <div className="bg-orange-500 p-1.5 rounded-lg group-hover:rotate-12 transition-transform">
+                            <PenTool size={20} className="text-white" />
+                        </div>
+                        <span className="text-lg font-bold tracking-tight text-slate-900">
+                            Rust<span className="text-orange-500">Press</span>
+                        </span>
+                    </Link>
                     <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 text-slate-600 cursor-pointer">
                         {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
                     </button>
