@@ -15,12 +15,14 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set environment variables
         id: env
@@ -52,14 +54,22 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             VERSION="${{ github.event.inputs.version }}"
-            # Remove 'v' prefix if present
-            VERSION=${VERSION#v}
-            echo "tags=${{ env.IMAGE_NAME }}:$VERSION,${{ env.IMAGE_NAME }}:latest" >> $GITHUB_OUTPUT
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            # Remove 'v' prefix if present for Docker tag
+            DOCKER_VERSION=${VERSION#v}
+            # Keep 'v' prefix for git tag
+            GIT_TAG=$VERSION
+            if [[ ! $GIT_TAG =~ ^v ]]; then
+              GIT_TAG="v$GIT_TAG"
+            fi
+            echo "tags=${{ env.IMAGE_NAME }}:$DOCKER_VERSION,${{ env.IMAGE_NAME }}:latest" >> $GITHUB_OUTPUT
+            echo "version=$DOCKER_VERSION" >> $GITHUB_OUTPUT
+            echo "git_tag=$GIT_TAG" >> $GITHUB_OUTPUT
+            echo "should_create_tag=true" >> $GITHUB_OUTPUT
           else
             # Push to main branch - use latest tag
             echo "tags=${{ env.IMAGE_NAME }}:latest" >> $GITHUB_OUTPUT
             echo "version=latest" >> $GITHUB_OUTPUT
+            echo "should_create_tag=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Build and push Docker image
@@ -75,3 +85,18 @@ jobs:
       - name: Image digest
         run: echo "Image pushed with tags ${{ steps.tags.outputs.tags }}"
 
+      - name: Create git tag
+        if: steps.tags.outputs.should_create_tag == 'true'
+        run: |
+          GIT_TAG="${{ steps.tags.outputs.git_tag }}"
+          # Check if tag already exists
+          if git rev-parse "$GIT_TAG" >/dev/null 2>&1; then
+            echo "Tag $GIT_TAG already exists, skipping tag creation"
+          else
+            echo "Creating tag $GIT_TAG"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -a "$GIT_TAG" -m "Release $GIT_TAG"
+            git push origin "$GIT_TAG"
+            echo "Tag $GIT_TAG created and pushed successfully"
+          fi
