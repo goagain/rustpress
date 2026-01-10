@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from 'react-router-dom';
 import { PenTool, Home, Search, Github, Menu, X, LayoutGrid, LogOut, User, LogIn } from 'lucide-react';
 
 const NavLink = ({ icon, label, active = false, onClick }: { icon?: React.ReactNode, label: string, active?: boolean, onClick?: () => void }) => {
@@ -34,7 +35,10 @@ export function NavBar({ authenticated, onLogin, onLogout }: NavBarProps) {
                             Rust<span className="text-orange-500">Press</span>
                         </span>
                     </div>
-                    <NavLink icon={<Home size={18} />} label="Home" active />
+                    <Link to="/" className="flex items-center gap-1.5 text-sm font-semibold text-orange-500">
+                        <Home size={18} />
+                        Home
+                    </Link>
                     <NavLink icon={<LayoutGrid size={18} />} label="Categories" />
                     <button className="p-2 text-slate-500 hover:text-orange-500 transition-colors cursor-pointer">
                         <Search size={20} />
@@ -80,7 +84,9 @@ export function NavBar({ authenticated, onLogin, onLogout }: NavBarProps) {
             {/* Mobile Dropdown */}
             {isMenuOpen && (
                 <div className="md:hidden border-b border-slate-200 bg-white p-4 space-y-4 animate-in fade-in slide-in-from-top-2">
-                    <NavLink label="Home" active />
+                    <Link to="/" className="flex items-center gap-1.5 text-sm font-semibold text-orange-500 w-full">
+                        Home
+                    </Link>
                     <NavLink label="Categories" />
                     {!authenticated && onLogin && (
                         <button 
