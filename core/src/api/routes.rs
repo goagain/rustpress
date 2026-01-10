@@ -3,7 +3,6 @@ use crate::api::page_controller::{serve_admin_spa, serve_spa};
 use crate::api::post_controller::{ApiDoc, *};
 use crate::api::upload_controller::*;
 use crate::api::user_controller::*;
-use crate::auth::basic_auth;
 use crate::auth::middleware::auth_middleware;
 use crate::repository::{PostRepository, UserRepository};
 use crate::storage::StorageBackend;
@@ -153,11 +152,13 @@ pub fn create_router<
         .nest_service("/uploads", ServeDir::new("uploads"))
         // Swagger UI
         .merge(SwaggerUi::new("/swagger-ui").url("/api-doc/openapi.json", ApiDoc::openapi()))
-        // Serve main frontend static files
+        // Serve main frontend static files (only assets directory)
+        // This ensures static assets (JS, CSS) are served, but SPA routes fall through to fallback
         .nest_service("/assets", ServeDir::new("frontend/dist/assets"))
-        .nest_service("/", ServeDir::new("frontend/dist"))
         // SPA fallback - serve index.html for all non-API routes
         // This must be last so API routes take precedence
+        // When user visits /posts/123, this handler will return index.html
+        // and the frontend React Router will handle the routing
         .fallback(serve_spa)
         .layer(
             CorsLayer::new()
