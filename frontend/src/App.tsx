@@ -8,7 +8,7 @@ import { HomePage } from './components/Pages/HomePage';
 import { PostDetailPage } from './components/Pages/PostDetailPage';
 import { CreatePostPage } from './components/Pages/CreatePostPage';
 import { EditPostPage } from './components/Pages/EditPostPage';
-import { isAuthenticated, clearTokens } from './services/api';
+import { api, isAuthenticated, clearTokens } from './services/api';
 import type { PostResponse } from './types';
 
 export default function App() {
@@ -16,6 +16,7 @@ export default function App() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [editingPost, setEditingPost] = useState<PostResponse | null>(null);
   const [showVersions, setShowVersions] = useState(false);
+  const [currentPost, setCurrentPost] = useState<PostResponse | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -30,6 +31,31 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Load current post data when navigating to post detail page
+  useEffect(() => {
+    const loadCurrentPost = async () => {
+      const pathParts = location.pathname.split('/');
+      if (pathParts[1] === 'posts' && pathParts[2] && !pathParts[3]) {
+        // We're on a post detail page
+        try {
+          const postId = parseInt(pathParts[2]);
+          if (!isNaN(postId)) {
+            const post = await api.getPost(postId);
+            setCurrentPost(post);
+          }
+        } catch (error) {
+          console.error('Failed to load post:', error);
+          setCurrentPost(null);
+        }
+      } else {
+        // Not on a post detail page, clear current post
+        setCurrentPost(null);
+      }
+    };
+
+    loadCurrentPost();
+  }, [location.pathname]);
+
   const handleLoginSuccess = () => {
     setAuthenticated(true);
     setShowLoginModal(false);
@@ -39,6 +65,7 @@ export default function App() {
     clearTokens();
     setAuthenticated(false);
     setEditingPost(null);
+    setCurrentPost(null);
     navigate('/');
   };
 
@@ -64,15 +91,9 @@ export default function App() {
     window.location.reload();
   };
 
-  // Get current post summary for sidebar (from location state or URL params)
+  // Get current post summary for sidebar
   const getPostSummary = (): string | undefined => {
-    const pathParts = location.pathname.split('/');
-    if (pathParts[1] === 'posts' && pathParts[2] && !pathParts[3]) {
-      // We're on a post detail page, but we don't have the post data here
-      // The sidebar will handle this case
-      return undefined;
-    }
-    return undefined;
+    return currentPost?.description || undefined;
   };
 
   return (

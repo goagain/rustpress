@@ -111,9 +111,9 @@ export function PostList({ onPostSelect }: PostListProps) {
               <h2 className="text-2xl font-bold text-slate-900 mb-2 hover:text-orange-600 transition-colors">
                 {post.title}
               </h2>
-              <p className="text-slate-600 line-clamp-2 mb-4">
-                {markdownToPlainText(post.content).substring(0, 150)}
-                {markdownToPlainText(post.content).length > 150 && '...'}
+              <p className={`text-slate-600 mb-4 ${post.description ? '' : 'line-clamp-2'}`}>
+                {post.description || markdownToPlainText(post.content).substring(0, 150)}
+                {post.description ? '' : (markdownToPlainText(post.content).length > 150 && '...')}
               </p>
               <div className="flex items-center gap-2 text-sm text-orange-600 font-medium">
                 Read more
